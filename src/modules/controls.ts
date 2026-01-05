@@ -322,10 +322,6 @@ export class ControlPanel {
             this.trailToggle.checked = this.params.trailsEnabled
         }
 
-        if (this.advancedSection && this.advancedToggle) {
-            this.advancedSection.style.display = 'none'
-            this.advancedToggle.textContent = 'Show advanced'
-        }
     }
 
     private addToggle(parent: HTMLDivElement | HTMLElement, label: string, value: boolean, onChange: (value: boolean) => void) {
