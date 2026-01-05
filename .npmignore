@@ -1,0 +1,12 @@
+# Ignore build artifacts that will be published
+.DS_Store
+*.log
+node_modules/
+
+# Exclude runtime-generated data from package
+public/vector-field.json
+
+# Keep these for the package
+!dist/
+!bin/
+!public/

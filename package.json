@@ -1,0 +1,52 @@
+{
+  "name": "@brandonlukas/luminar",
+  "version": "0.2.6",
+  "description": "Visualize 2D vector fields as looping particle flows with bloom and glow effects",
+  "type": "module",
+  "author": "Brandon Lukas",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brandonlukas/luminar.git"
+  },
+  "keywords": [
+    "vector-field",
+    "visualization",
+    "particle-flow",
+    "threejs",
+    "bloom",
+    "csv",
+    "data-viz",
+    "webgl"
+  ],
+  "bin": {
+    "luminar": "./bin/luminar.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "public/",
+    "index.html",
+    "src/"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "build-and-preview": "npm run build && npm run preview --",
+    "visualize:csv": "node scripts/visualize-csv.mjs"
+  },
+  "devDependencies": {
+    "@types/three": "^0.182.0",
+    "typescript": "~5.9.3",
+    "vite": "npm:rolldown-vite@7.2.5"
+  },
+  "overrides": {
+    "vite": "npm:rolldown-vite@7.2.5"
+  },
+  "dependencies": {
+    "three": "^0.182.0",
+    "sirv": "^2.0.4",
+    "open": "^10.1.0"
+  }
+}
