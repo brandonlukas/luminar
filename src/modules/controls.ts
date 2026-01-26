@@ -97,7 +97,7 @@ export class ControlPanel {
             this.content,
             'Speed',
             0.1,
-            8,
+            12,
             0.1,
             this.params.speed,
             (value: number) => {
