@@ -1,46 +1,38 @@
-import type { ColorPreset, ParticleParams, SliderHandle } from '../lib/types'
-import { COLOR_PRESETS, defaultParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
+import type { ParticleParams, SliderHandle, ColormapName, VelocityScaling } from '../lib/types'
+import { defaultParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
+import { COLORMAPS } from '../lib/colormaps'
 import { PointsMaterial } from 'three'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 
+export interface ControlCallbacks {
+    onParticleCountChange: (count: number) => void
+    onLifetimeChange: () => void
+    onTrailToggle: (enabled: boolean) => void
+    onTrailDecayChange: (value: number) => void
+    onColormapChange: (name: ColormapName) => void
+    onVelocityScalingChange: (mode: VelocityScaling) => void
+    onBackgroundColorChange: (color: string) => void
+    onOpacityChange: (value: number) => void
+    onBloomThresholdChange: (value: number) => void
+    onClearField: () => void
+}
+
 export class ControlPanel {
-    private panel!: HTMLDivElement
-    private content!: HTMLDivElement
     private controlHandles = new Map<string, SliderHandle>()
     private selectHandles = new Map<string, HTMLSelectElement>()
     private trailToggle?: HTMLInputElement
-    private fieldButtons: Record<'left' | 'right', HTMLButtonElement | null> = { left: null, right: null }
-    private fieldStatuses: Record<'left' | 'right', HTMLSpanElement | null> = { left: null, right: null }
-    private advancedSection?: HTMLDivElement
-    private advancedToggle?: HTMLButtonElement
     private container: HTMLElement
     private params: ParticleParams
     private material: PointsMaterial
     private bloomPass: UnrealBloomPass
-    private callbacks: {
-        onParticleCountChange: (count: number) => void
-        onLifetimeChange: () => void
-        onTrailToggle: (enabled: boolean) => void
-        onTrailDecayChange: (value: number) => void
-        onClearFieldA: () => void
-        onClearFieldB: () => void
-        onColorChange: () => void
-    }
+    private callbacks: ControlCallbacks
 
     constructor(
         container: HTMLElement,
         params: ParticleParams,
         material: PointsMaterial,
         bloomPass: UnrealBloomPass,
-        callbacks: {
-            onParticleCountChange: (count: number) => void
-            onLifetimeChange: () => void
-            onTrailToggle: (enabled: boolean) => void
-            onTrailDecayChange: (value: number) => void
-            onClearFieldA: () => void
-            onClearFieldB: () => void
-            onColorChange: () => void
-        },
+        callbacks: ControlCallbacks,
     ) {
         this.container = container
         this.params = params
@@ -50,310 +42,299 @@ export class ControlPanel {
     }
 
     create() {
-        this.panel = document.createElement('div')
-        this.panel.className = 'controls'
+        this.buildParticlesSection()
+        this.buildBloomSection()
+        this.buildColorSection()
+        this.buildResetButton()
+    }
 
-        const header = document.createElement('div')
-        header.className = 'controls__header'
+    private buildParticlesSection() {
+        const { header, body } = this.createSection('Particles')
 
-        const title = document.createElement('div')
-        title.className = 'controls__title'
-        title.textContent = 'Controls'
+        // Particle count (logarithmic)
+        const logMin = Math.log(100)
+        const logMax = Math.log(200000)
+        const initialSliderVal = (Math.log(this.params.particleCount) - logMin) / (logMax - logMin)
 
-        const toggleBtn = document.createElement('button')
-        toggleBtn.className = 'controls__toggle'
-        toggleBtn.textContent = '−'
-        toggleBtn.type = 'button'
-        toggleBtn.addEventListener('click', () => {
-            this.panel.classList.toggle('controls--collapsed')
-            toggleBtn.textContent = this.panel.classList.contains('controls--collapsed') ? '+' : '−'
-            // Trigger resize to recalculate field offset
-            window.dispatchEvent(new Event('resize'))
+        const countRow = document.createElement('label')
+        countRow.className = 'controls__row'
+        const countLabel = document.createElement('span')
+        countLabel.textContent = 'Count'
+        const countInput = document.createElement('input')
+        countInput.type = 'range'
+        countInput.min = '0'
+        countInput.max = '1'
+        countInput.step = '0.001'
+        countInput.value = String(initialSliderVal)
+        const countValue = document.createElement('span')
+        countValue.className = 'controls__value'
+        countValue.textContent = String(this.params.particleCount)
+        countInput.addEventListener('input', () => {
+            const t = parseFloat(countInput.value)
+            const count = Math.round(Math.exp(logMin + t * (logMax - logMin)))
+            countValue.textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
+            this.params.particleCount = count
+            this.callbacks.onParticleCountChange(count)
         })
-
-        header.appendChild(title)
-        header.appendChild(toggleBtn)
-        this.panel.appendChild(header)
-
-        // Scrollable content container (header stays sticky)
-        this.content = document.createElement('div')
-        this.content.className = 'controls__body'
-        this.panel.appendChild(this.content)
-
-        // Field colors
-        const colorControlA = this.addSelect('Field A color', COLOR_PRESETS, this.params.colorPresetA, (key) => {
-            this.params.colorPresetA = key
-            this.callbacks.onColorChange()
-        })
-        const colorControlB = this.addSelect('Field B color', COLOR_PRESETS, this.params.colorPresetB, (key) => {
-            this.params.colorPresetB = key
-            this.callbacks.onColorChange()
-        })
-        this.selectHandles.set('colorA', colorControlA)
-        this.selectHandles.set('colorB', colorControlB)
+        countRow.appendChild(countLabel)
+        countRow.appendChild(countInput)
+        countRow.appendChild(countValue)
+        body.appendChild(countRow)
+        this.controlHandles.set('particleCount', { input: countInput, valueTag: countValue })
 
         // Speed
-        const speedControl = this.addSlider(
-            this.content,
-            'Speed',
-            0.1,
-            12,
-            0.1,
-            this.params.speed,
-            (value: number) => {
-                this.params.speed = value
-            },
-        )
-        this.controlHandles.set('speed', speedControl)
+        this.addSlider(body, 'Speed', 0.1, 12, 0.1, this.params.speed, (v) => {
+            this.params.speed = v
+        }, 'speed')
 
-        // Advanced section
-        const advancedToggle = document.createElement('button')
-        advancedToggle.type = 'button'
-        advancedToggle.className = 'controls__button'
-        advancedToggle.textContent = 'Show advanced'
-        this.advancedToggle = advancedToggle
+        // Particle size
+        this.addSlider(body, 'Size', 0.5, 4, 0.1, this.params.size, (v) => {
+            this.params.size = v
+            this.material.size = v
+        }, 'size')
 
-        const advancedSection = document.createElement('div')
-        advancedSection.className = 'controls__advanced'
-        advancedSection.style.display = 'none'
-        this.advancedSection = advancedSection
+        // Opacity
+        this.addSlider(body, 'Opacity', 0, 1, 0.01, this.params.opacity, (v) => {
+            this.params.opacity = v
+            this.callbacks.onOpacityChange(v)
+        }, 'opacity')
 
-        // Noise strength
-        const noiseControl = this.addSlider(advancedSection, 'Noise', 0, 1, 0.01, this.params.noiseStrength, (value) => {
-            this.params.noiseStrength = value
-        })
-        this.controlHandles.set('noiseStrength', noiseControl)
-
-        // Size
-        const sizeControl = this.addSlider(advancedSection, 'Size', 0.5, 4, 0.1, this.params.size, (value) => {
-            this.params.size = value
-            this.material.size = value
-        })
-        this.controlHandles.set('size', sizeControl)
-
-        // Particle count
-        const particleCountControl = this.addSlider(
-            advancedSection,
-            'Particle count',
-            100,
-            8000,
-            100,
-            this.params.particleCount,
-            (value) => {
-                this.params.particleCount = Math.round(value)
-                this.callbacks.onParticleCountChange(this.params.particleCount)
-            },
-        )
-        this.controlHandles.set('particleCount', particleCountControl)
-
-        // Bloom strength
-        const bloomStrengthControl = this.addSlider(
-            advancedSection,
-            'Bloom strength',
-            0.2,
-            2.5,
-            0.05,
-            this.params.bloomStrength,
-            (value) => {
-                this.params.bloomStrength = value
-                this.updateBloom()
-            },
-        )
-        this.controlHandles.set('bloomStrength', bloomStrengthControl)
-
-        // Bloom radius
-        const bloomRadiusControl = this.addSlider(
-            advancedSection,
-            'Bloom radius',
-            0.0,
-            1.2,
-            0.02,
-            this.params.bloomRadius,
-            (value) => {
-                this.params.bloomRadius = value
-                this.updateBloom()
-            },
-        )
-        this.controlHandles.set('bloomRadius', bloomRadiusControl)
-
-        // Life min
-        const lifeMinControl = this.addSlider(advancedSection, 'Life min (s)', 0.1, 2.0, 0.05, this.params.lifeMin, (value) => {
-            this.params.lifeMin = value
+        // Lifetime min
+        this.addSlider(body, 'Life min (s)', 0.1, 2.0, 0.05, this.params.lifeMin, (v) => {
+            this.params.lifeMin = v
             if (this.params.lifeMin > this.params.lifeMax) {
-                this.params.lifeMax = value
-                const lifeMaxHandle = this.controlHandles.get('lifeMax')
-                if (lifeMaxHandle) this.syncSlider(lifeMaxHandle, this.params.lifeMax)
+                this.params.lifeMax = v
+                const h = this.controlHandles.get('lifeMax')
+                if (h) this.syncSlider(h, v)
             }
             this.callbacks.onLifetimeChange()
-        })
-        this.controlHandles.set('lifeMin', lifeMinControl)
+        }, 'lifeMin')
 
-        // Life max
-        const lifeMaxControl = this.addSlider(advancedSection, 'Life max (s)', 0.2, 5.0, 0.05, this.params.lifeMax, (value) => {
-            this.params.lifeMax = value
+        // Lifetime max
+        this.addSlider(body, 'Life max (s)', 0.2, 5.0, 0.05, this.params.lifeMax, (v) => {
+            this.params.lifeMax = v
             if (this.params.lifeMax < this.params.lifeMin) {
-                this.params.lifeMin = value
-                const lifeMinHandle = this.controlHandles.get('lifeMin')
-                if (lifeMinHandle) this.syncSlider(lifeMinHandle, this.params.lifeMin)
+                this.params.lifeMin = v
+                const h = this.controlHandles.get('lifeMin')
+                if (h) this.syncSlider(h, v)
             }
             this.callbacks.onLifetimeChange()
-        })
-        this.controlHandles.set('lifeMax', lifeMaxControl)
+        }, 'lifeMax')
 
         // Field border
-        const fieldDistControl = this.addSlider(
-            advancedSection,
-            'Field border',
-            FIELD_BORDER_MIN,
-            FIELD_BORDER_MAX,
-            0.01,
-            this.params.fieldValidDistance,
-            (value) => {
-                this.params.fieldValidDistance = value
-            },
-        )
-        this.controlHandles.set('fieldDist', fieldDistControl)
+        this.addSlider(body, 'Field border', FIELD_BORDER_MIN, FIELD_BORDER_MAX, 0.01, this.params.fieldValidDistance, (v) => {
+            this.params.fieldValidDistance = v
+        }, 'fieldDist')
 
         // Trails toggle
-        const trailsToggle = this.addToggle(advancedSection, 'Trails', this.params.trailsEnabled, (enabled) => {
+        const trailsToggle = this.addToggle(body, 'Trails', this.params.trailsEnabled, (enabled) => {
             this.params.trailsEnabled = enabled
             this.callbacks.onTrailToggle(enabled)
         })
         this.trailToggle = trailsToggle
 
-        // Trail decay
-        const trailDecayControl = this.addSlider(
-            advancedSection,
-            'Trail decay',
-            0.7,
-            0.99,
-            0.005,
-            this.params.trailDecay,
-            (value) => {
-                this.params.trailDecay = value
-                this.callbacks.onTrailDecayChange(value)
-            },
-        )
-        this.controlHandles.set('trailDecay', trailDecayControl)
+        // Trail length (decay)
+        this.addSlider(body, 'Trail length', 0.7, 0.99, 0.005, this.params.trailDecay, (v) => {
+            this.params.trailDecay = v
+            this.callbacks.onTrailDecayChange(v)
+        }, 'trailDecay')
 
-        advancedToggle.addEventListener('click', () => {
-            const isHidden = advancedSection.style.display === 'none'
-            advancedSection.style.display = isHidden ? 'block' : 'none'
-            advancedToggle.textContent = isHidden ? 'Hide advanced' : 'Show advanced'
+        this.container.appendChild(header)
+        this.container.appendChild(body)
+    }
+
+    private buildBloomSection() {
+        const { header, body } = this.createSection('Bloom')
+
+        this.addSlider(body, 'Strength', 0.2, 2.5, 0.05, this.params.bloomStrength, (v) => {
+            this.params.bloomStrength = v
+            this.updateBloom()
+        }, 'bloomStrength')
+
+        this.addSlider(body, 'Radius', 0.0, 1.2, 0.02, this.params.bloomRadius, (v) => {
+            this.params.bloomRadius = v
+            this.updateBloom()
+        }, 'bloomRadius')
+
+        this.addSlider(body, 'Threshold', 0.0, 1.0, 0.01, this.params.bloomThreshold, (v) => {
+            this.params.bloomThreshold = v
+            this.callbacks.onBloomThresholdChange(v)
+        }, 'bloomThreshold')
+
+        this.container.appendChild(header)
+        this.container.appendChild(body)
+    }
+
+    private buildColorSection() {
+        const { header, body } = this.createSection('Color')
+
+        // Colormap dropdown
+        const cmRow = document.createElement('label')
+        cmRow.className = 'controls__row'
+        cmRow.style.gridTemplateColumns = '1fr 1fr'
+        const cmLabel = document.createElement('span')
+        cmLabel.textContent = 'Colormap'
+        const cmSelect = document.createElement('select')
+        cmSelect.className = 'controls__select'
+        for (const cm of COLORMAPS) {
+            const opt = document.createElement('option')
+            opt.value = cm.name
+            opt.textContent = cm.label
+            cmSelect.appendChild(opt)
+        }
+        cmSelect.value = this.params.colormap
+        cmSelect.addEventListener('change', () => {
+            this.params.colormap = cmSelect.value as ColormapName
+            this.callbacks.onColormapChange(this.params.colormap)
         })
+        cmRow.appendChild(cmLabel)
+        cmRow.appendChild(cmSelect)
+        body.appendChild(cmRow)
+        this.selectHandles.set('colormap', cmSelect)
 
-        this.content.appendChild(advancedToggle)
-        this.content.appendChild(advancedSection)
+        // Velocity scaling dropdown
+        const vsRow = document.createElement('label')
+        vsRow.className = 'controls__row'
+        vsRow.style.gridTemplateColumns = '1fr 1fr'
+        const vsLabel = document.createElement('span')
+        vsLabel.textContent = 'Vel. scaling'
+        const vsSelect = document.createElement('select')
+        vsSelect.className = 'controls__select'
+        for (const mode of [
+            { value: 'raw', label: 'Raw' },
+            { value: 'log', label: 'Logarithmic' },
+            { value: 'normalized', label: 'Normalized' },
+        ]) {
+            const opt = document.createElement('option')
+            opt.value = mode.value
+            opt.textContent = mode.label
+            vsSelect.appendChild(opt)
+        }
+        vsSelect.value = this.params.velocityScaling
+        vsSelect.addEventListener('change', () => {
+            this.params.velocityScaling = vsSelect.value as VelocityScaling
+            this.callbacks.onVelocityScalingChange(this.params.velocityScaling)
+        })
+        vsRow.appendChild(vsLabel)
+        vsRow.appendChild(vsSelect)
+        body.appendChild(vsRow)
+        this.selectHandles.set('velocityScaling', vsSelect)
 
-        // Reset button (right after advanced section)
+        // Background color
+        const bgRow = document.createElement('label')
+        bgRow.className = 'controls__row'
+        bgRow.style.gridTemplateColumns = '1fr 1fr'
+        const bgLabel = document.createElement('span')
+        bgLabel.textContent = 'Background'
+        const bgInput = document.createElement('input')
+        bgInput.type = 'color'
+        bgInput.className = 'controls__color-input'
+        bgInput.value = this.params.backgroundColor
+        bgInput.addEventListener('input', () => {
+            this.params.backgroundColor = bgInput.value
+            this.callbacks.onBackgroundColorChange(bgInput.value)
+        })
+        bgRow.appendChild(bgLabel)
+        bgRow.appendChild(bgInput)
+        body.appendChild(bgRow)
+
+        this.container.appendChild(header)
+        this.container.appendChild(body)
+    }
+
+    private buildResetButton() {
         const resetBtn = document.createElement('button')
         resetBtn.type = 'button'
         resetBtn.className = 'controls__button'
         resetBtn.textContent = 'Reset to defaults'
+        resetBtn.style.marginTop = '12px'
         resetBtn.addEventListener('click', () => this.reset())
-        this.content.appendChild(resetBtn)
-
-        // Field management
-        const fieldSection = document.createElement('div')
-        fieldSection.className = 'controls__section'
-        const fieldSubtitle = document.createElement('div')
-        fieldSubtitle.className = 'controls__subtitle'
-        fieldSubtitle.textContent = 'Fields'
-        fieldSection.appendChild(fieldSubtitle)
-
-        const clearARow = this.buildFieldRow('Field A', 'left', () => this.callbacks.onClearFieldA())
-        fieldSection.appendChild(clearARow)
-
-        const clearBRow = this.buildFieldRow('Field B', 'right', () => this.callbacks.onClearFieldB())
-        fieldSection.appendChild(clearBRow)
-
-        this.content.appendChild(fieldSection)
-
-        this.container.appendChild(this.panel)
-    }
-
-    setFieldState(side: 'left' | 'right', state: { label: string; loaded: boolean }) {
-        const button = this.fieldButtons[side]
-        const status = this.fieldStatuses[side]
-        if (!button || !status) return
-
-        button.textContent = state.loaded ? 'Clear' : 'Empty'
-        button.disabled = !state.loaded
-        button.classList.toggle('controls__button--empty', !state.loaded)
-        status.textContent = state.label
-    }
-
-    syncFieldValidDistance(value: number) {
-        this.params.fieldValidDistance = value
-        const handle = this.controlHandles.get('fieldDist')
-        if (handle) {
-            this.syncSlider(handle, value)
-        }
+        this.container.appendChild(resetBtn)
     }
 
     private reset() {
         Object.assign(this.params, defaultParams)
         this.material.size = this.params.size
+        this.material.opacity = this.params.opacity
         this.updateBloom()
         this.callbacks.onParticleCountChange(this.params.particleCount)
         this.callbacks.onLifetimeChange()
         this.callbacks.onTrailToggle(this.params.trailsEnabled)
         this.callbacks.onTrailDecayChange(this.params.trailDecay)
-        this.callbacks.onColorChange()
+        this.callbacks.onColormapChange(this.params.colormap)
+        this.callbacks.onVelocityScalingChange(this.params.velocityScaling)
+        this.callbacks.onBackgroundColorChange(this.params.backgroundColor)
+        this.callbacks.onOpacityChange(this.params.opacity)
+        this.callbacks.onBloomThresholdChange(this.params.bloomThreshold)
 
-        // Sync all controls
+        // Sync sliders
         for (const [key, handle] of this.controlHandles.entries()) {
+            if (key === 'particleCount') {
+                // Log-scale slider
+                const logMin = Math.log(100)
+                const logMax = Math.log(200000)
+                const t = (Math.log(this.params.particleCount) - logMin) / (logMax - logMin)
+                handle.input.value = String(t)
+                handle.valueTag.textContent = String(this.params.particleCount)
+                continue
+            }
             const paramKey = key as keyof ParticleParams
             if (typeof this.params[paramKey] === 'number') {
                 this.syncSlider(handle, this.params[paramKey] as number)
             }
         }
 
-        for (const [key, select] of this.selectHandles.entries()) {
-            if (key === 'colorA') {
-                select.value = this.params.colorPresetA
-            }
-            if (key === 'colorB') {
-                select.value = this.params.colorPresetB
-            }
-        }
+        // Sync selects
+        const cmSelect = this.selectHandles.get('colormap')
+        if (cmSelect) cmSelect.value = this.params.colormap
+        const vsSelect = this.selectHandles.get('velocityScaling')
+        if (vsSelect) vsSelect.value = this.params.velocityScaling
 
         if (this.trailToggle) {
             this.trailToggle.checked = this.params.trailsEnabled
         }
-
     }
 
-    private addToggle(parent: HTMLDivElement | HTMLElement, label: string, value: boolean, onChange: (value: boolean) => void) {
-        const row = document.createElement('label')
-        row.className = 'controls__row'
+    private createSection(title: string) {
+        const section = document.createElement('div')
+        section.className = 'controls__section'
 
-        const text = document.createElement('span')
-        text.textContent = label
+        const header = document.createElement('div')
+        header.className = 'controls__section-header'
 
-        const input = document.createElement('input')
-        input.type = 'checkbox'
-        input.checked = value
-        input.addEventListener('change', (event) => {
-            const next = (event.target as HTMLInputElement).checked
-            onChange(next)
+        const titleEl = document.createElement('span')
+        titleEl.className = 'controls__section-title'
+        titleEl.textContent = title
+
+        const arrow = document.createElement('span')
+        arrow.className = 'controls__section-arrow'
+        arrow.textContent = '\u25BC'
+
+        header.appendChild(titleEl)
+        header.appendChild(arrow)
+
+        const body = document.createElement('div')
+        body.className = 'controls__section-body'
+
+        header.addEventListener('click', () => {
+            section.classList.toggle('controls__section--collapsed')
         })
 
-        row.appendChild(text)
-        row.appendChild(input)
-        parent.appendChild(row)
+        section.appendChild(header)
+        section.appendChild(body)
 
-        return input
+        return { section, header: section, body }
     }
 
     private addSlider(
-        parent: HTMLDivElement | HTMLElement,
+        parent: HTMLElement,
         label: string,
         min: number,
         max: number,
         step: number,
         value: number,
         onChange: (value: number) => void,
+        key?: string,
     ): SliderHandle {
         const row = document.createElement('label')
         row.className = 'controls__row'
@@ -372,8 +353,8 @@ export class ControlPanel {
         valueTag.className = 'controls__value'
         valueTag.textContent = this.formatValue(value, step)
 
-        input.addEventListener('input', (event) => {
-            const next = parseFloat((event.target as HTMLInputElement).value)
+        input.addEventListener('input', () => {
+            const next = parseFloat(input.value)
             valueTag.textContent = this.formatValue(next, step)
             onChange(next)
         })
@@ -383,65 +364,31 @@ export class ControlPanel {
         row.appendChild(valueTag)
         parent.appendChild(row)
 
-        return { input, valueTag }
+        const handle = { input, valueTag }
+        if (key) this.controlHandles.set(key, handle)
+        return handle
     }
 
-    private addSelect(label: string, options: ColorPreset[], value: string, onChange: (key: string) => void): HTMLSelectElement {
+    private addToggle(parent: HTMLElement, label: string, value: boolean, onChange: (value: boolean) => void) {
         const row = document.createElement('label')
         row.className = 'controls__row'
+        row.style.gridTemplateColumns = '1fr auto'
 
         const text = document.createElement('span')
         text.textContent = label
 
-        const select = document.createElement('select')
-        select.className = 'controls__select'
-        for (const option of options) {
-            const optEl = document.createElement('option')
-            optEl.value = option.key
-            optEl.textContent = option.label
-            select.appendChild(optEl)
-        }
-        select.value = value
-        select.addEventListener('change', (event) => {
-            const next = (event.target as HTMLSelectElement).value
-            onChange(next)
+        const input = document.createElement('input')
+        input.type = 'checkbox'
+        input.checked = value
+        input.addEventListener('change', () => {
+            onChange(input.checked)
         })
 
         row.appendChild(text)
-        row.appendChild(select)
-        this.content.appendChild(row)
+        row.appendChild(input)
+        parent.appendChild(row)
 
-        return select
-    }
-
-    private buildFieldRow(label: string, side: 'left' | 'right', onClear: () => void) {
-        const row = document.createElement('div')
-        row.className = 'controls__row controls__row--field'
-
-        const meta = document.createElement('div')
-        meta.className = 'controls__field-meta'
-        const title = document.createElement('div')
-        title.className = 'controls__field-label'
-        title.textContent = label
-        const status = document.createElement('span')
-        status.className = 'controls__field-status'
-        status.textContent = 'Empty'
-        meta.appendChild(title)
-        meta.appendChild(status)
-
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.className = 'controls__button controls__button--empty'
-        button.textContent = 'Empty'
-        button.disabled = true
-        button.addEventListener('click', () => onClear())
-
-        this.fieldButtons[side] = button
-        this.fieldStatuses[side] = status
-
-        row.appendChild(meta)
-        row.appendChild(button)
-        return row
+        return input
     }
 
     private updateBloom() {

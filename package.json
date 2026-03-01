@@ -45,8 +45,10 @@
     "vite": "npm:rolldown-vite@7.2.5"
   },
   "dependencies": {
-    "three": "^0.182.0",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "open": "^10.1.0",
     "sirv": "^2.0.4",
-    "open": "^10.1.0"
+    "three": "^0.182.0"
   }
 }

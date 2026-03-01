@@ -2,7 +2,6 @@ import type { VectorDatum, FieldTransform } from '../lib/types'
 import { WORLD_EXTENT } from '../lib/constants'
 
 export class FieldLoader {
-    private fieldStatusEl: HTMLElement | null = null
     private onFieldLoaded: (data: VectorDatum[], transform: FieldTransform, label: string) => void
 
     constructor(
@@ -11,30 +10,21 @@ export class FieldLoader {
         this.onFieldLoaded = onFieldLoaded
     }
 
-    setStatusElement(el: HTMLElement | null) {
-        this.fieldStatusEl = el
-    }
-
     async load() {
         try {
             const res = await fetch('/vector-field.json', { cache: 'no-store' })
             if (!res.ok) {
-                this.updateStatus('default (built-in)')
                 return
             }
             const data = (await res.json()) as VectorDatum[]
             if (Array.isArray(data) && data.length > 0) {
                 const { transform, bounds } = this.computeFieldTransform(data)
-                const label = `loaded ${data.length} vectors (${bounds.width.toFixed(1)}×${bounds.height.toFixed(1)})`
+                const label = `default \u00B7 ${data.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`
                 this.onFieldLoaded(data, transform, label)
-                this.updateStatus(label)
                 console.log('Field bounds:', bounds, 'scale:', transform.scale)
-            } else {
-                this.updateStatus('default (empty file)')
             }
         } catch (error) {
             console.error('Failed to load vector field', error)
-            this.updateStatus('default (load error)')
         }
     }
 
@@ -64,9 +54,5 @@ export class FieldLoader {
             transform: { scale, offsetX, offsetY },
             bounds: { minX, maxX, minY, maxY, width: dataWidth, height: dataHeight },
         }
-    }
-
-    updateStatus(label: string) {
-        if (this.fieldStatusEl) this.fieldStatusEl.textContent = label
     }
 }

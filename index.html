@@ -9,7 +9,35 @@
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <header class="topbar">
+      <div class="topbar__brand">luminar</div>
+      <div class="topbar__loader">
+        <button class="topbar__filepicker" type="button" id="file-picker-btn">Load CSV</button>
+        <input type="file" id="file-input" accept=".csv,.txt" style="display:none" />
+        <span class="topbar__hint">or drag &amp; drop</span>
+      </div>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="viewport">
+      <div class="viewport__canvas-wrap" id="canvas-wrap"></div>
+    </div>
+    <footer class="statusbar">
+      <div class="statusbar__left">
+        <span class="statusbar__fps" id="status-fps">-- fps</span>
+        <span class="statusbar__sep">&middot;</span>
+        <span class="statusbar__particles" id="status-particles">0 particles</span>
+      </div>
+      <div class="statusbar__center">
+        <span class="statusbar__field" id="status-field">No field loaded</span>
+      </div>
+      <div class="statusbar__right">
+        <button class="statusbar__btn" id="btn-playpause" type="button">Pause</button>
+        <button class="statusbar__btn" id="btn-aspect" type="button">16:9</button>
+      </div>
+    </footer>
+  </div>
+  <div class="drop-overlay" id="drop-overlay" style="display:none">Drop CSV to load vector field</div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 
