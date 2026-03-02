@@ -1,24 +1,10 @@
 # luminar
 
-**2D vector field particle flow visualization** with bloom effects, powered by Three.js.
-
-A particle-flow visualization inspired by the bloom-heavy aesthetic of [lumap](https://github.com/brandonlukas/lumap). Features dual-field rendering, spatial grid optimization for large datasets, real-time controls, and WebM recording.
+2D vector field particle flow visualization with bloom effects, powered by Three.js.
 
 ![luminar visualization](./screenshot.png)
 
-## Features
-
-- 🎨 **Dual vector fields** - Load and visualize two CSV vector fields side-by-side with independent colors
-- 🚀 **High performance** - Spatial grid optimization handles 5000+ field points at 60 FPS
-- 🎬 **Built-in recording** - Export as WebM video up to 4K resolution
-- 🎛️ **Real-time controls** - Adjust particle count, speed, bloom, colors, trails, and more
-- 📂 **Drag & drop** - Drop CSV files directly into the browser to load fields
-- 🌈 **8 color presets** - From luminous violet to electric lime
-- ✨ **Bloom & trails** - Unreal Bloom post-processing with optional motion trails
-
-## Quick Start
-
-**Local development** (recommended):
+## Installation
 
 ```sh
 git clone https://github.com/brandonlukas/luminar.git
@@ -27,13 +13,14 @@ npm install
 npm run dev
 ```
 
-Visit http://localhost:5173 and drag your CSV files onto the left or right side of the canvas to load Field A or Field B.
+Open http://localhost:5173.
 
-## CSV Format
+## Quick Start
 
-Your CSV should have four columns: `x`, `y`, `dx`, `dy` (position x, position y, velocity x, velocity y). Headers are optional and auto-detected.
+Load a CSV using the "Load CSV" button in the top bar, or drag and drop a file anywhere on the page. You can load up to two fields for side-by-side comparison.
 
-**Example with header:**
+Your CSV should have four columns -- `x`, `y`, `dx`, `dy` (position and velocity). Headers are optional.
+
 ```csv
 x,y,dx,dy
 0.0,0.0,1.2,0.5
@@ -41,27 +28,16 @@ x,y,dx,dy
 1.0,0.0,0.9,0.7
 ```
 
-**Example without header (whitespace-separated also supported):**
-```csv
+Whitespace-separated values also work:
+
+```
 0.0  0.0  1.2  0.5
 0.5  0.0  1.1  0.6
 1.0  0.0  0.9  0.7
 ```
 
-## Recording Video
+Adjust particles, bloom, colors, and trails in the left sidebar. The right sidebar has export controls. Play/pause and aspect ratio toggles are in the bottom status bar.
 
-1. Click **Controls** button (top-right)
-2. Scroll to **Export (WebM)** section
-3. Choose resolution: Current window, 1080p, 1440p, or 4K
-4. Choose duration: 3s, 5s, 10s, or 15s
-5. Click **⏺ Start recording**
-6. WebM file downloads automatically when complete
+## Export
 
-**Convert to GIF or MP4:**
-```sh
-# GIF (30fps, 720p width)
-ffmpeg -i luminar.webm -vf "fps=30,scale=720:-1:flags=lanczos" -loop 0 luminar.gif
-
-# MP4 (h264)
-ffmpeg -i luminar.webm -c:v libx264 -preset slow -crf 18 luminar.mp4
-```
+Record an MP4 video directly in the browser (encoded client-side via FFmpeg.wasm). Choose resolution (current, 1080p, or 4K), frame rate, duration, and quality from the right sidebar, then click "Export MP4".
