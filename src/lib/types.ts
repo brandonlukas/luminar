@@ -29,3 +29,10 @@ export interface FieldTransform {
     offsetX: number
     offsetY: number
 }
+
+export interface FieldBounds {
+    minX: number
+    maxX: number
+    minY: number
+    maxY: number
+}

@@ -27,7 +27,10 @@ export class FFmpegEncoder {
     }
 
     addFrame(pixels: Uint8Array): void {
-        // Collect frames in JS memory — avoids FS pattern matching issues
+        // Collect frames in JS memory — the %05d pattern (image2 demuxer) and
+        // individual FS writes fail silently with rolldown-vite due to Emscripten
+        // FS path resolution differences between writeFile() and exec().
+        // Single-file rawvideo input is the only reliable cross-bundler approach.
         this.frames.push(pixels)
     }
 
@@ -66,9 +69,7 @@ export class FFmpegEncoder {
         const raw = data instanceof Uint8Array
             ? data
             : new TextEncoder().encode(data as string)
-        const ab = new ArrayBuffer(raw.byteLength)
-        new Uint8Array(ab).set(raw)
-        const blob = new Blob([ab], { type: 'video/mp4' })
+        const blob = new Blob([raw.buffer as ArrayBuffer], { type: 'video/mp4' })
 
         // Cleanup virtual FS
         try { await this.ffmpeg.deleteFile('input.raw') } catch { /* ignore */ }

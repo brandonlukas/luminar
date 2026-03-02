@@ -1,4 +1,4 @@
-export type VectorDatum = { x: number; y: number; dx: number; dy: number }
+import type { VectorDatum } from './types'
 
 export function parseCsv(text: string): VectorDatum[] {
     const lines = text.split(/\r?\n/).filter(Boolean)

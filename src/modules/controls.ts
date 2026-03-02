@@ -1,8 +1,6 @@
 import type { ParticleParams, SliderHandle, ColormapName, VelocityScaling } from '../lib/types'
 import { defaultParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
 import { COLORMAPS } from '../lib/colormaps'
-import { PointsMaterial } from 'three'
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 
 export interface ControlCallbacks {
     onParticleCountChange: (count: number) => void
@@ -10,9 +8,11 @@ export interface ControlCallbacks {
     onTrailToggle: (enabled: boolean) => void
     onTrailDecayChange: (value: number) => void
     onColormapChange: (name: ColormapName) => void
-    onVelocityScalingChange: (mode: VelocityScaling) => void
     onBackgroundColorChange: (color: string) => void
+    onSizeChange: (value: number) => void
     onOpacityChange: (value: number) => void
+    onBloomStrengthChange: (value: number) => void
+    onBloomRadiusChange: (value: number) => void
     onBloomThresholdChange: (value: number) => void
     onClearField: () => void
 }
@@ -23,21 +23,15 @@ export class ControlPanel {
     private trailToggle?: HTMLInputElement
     private container: HTMLElement
     private params: ParticleParams
-    private material: PointsMaterial
-    private bloomPass: UnrealBloomPass
     private callbacks: ControlCallbacks
 
     constructor(
         container: HTMLElement,
         params: ParticleParams,
-        material: PointsMaterial,
-        bloomPass: UnrealBloomPass,
         callbacks: ControlCallbacks,
     ) {
         this.container = container
         this.params = params
-        this.material = material
-        this.bloomPass = bloomPass
         this.callbacks = callbacks
     }
 
@@ -90,7 +84,7 @@ export class ControlPanel {
         // Particle size
         this.addSlider(body, 'Size', 0.5, 4, 0.1, this.params.size, (v) => {
             this.params.size = v
-            this.material.size = v
+            this.callbacks.onSizeChange(v)
         }, 'size')
 
         // Opacity
@@ -148,12 +142,12 @@ export class ControlPanel {
 
         this.addSlider(body, 'Strength', 0.2, 2.5, 0.05, this.params.bloomStrength, (v) => {
             this.params.bloomStrength = v
-            this.updateBloom()
+            this.callbacks.onBloomStrengthChange(v)
         }, 'bloomStrength')
 
         this.addSlider(body, 'Radius', 0.0, 1.2, 0.02, this.params.bloomRadius, (v) => {
             this.params.bloomRadius = v
-            this.updateBloom()
+            this.callbacks.onBloomRadiusChange(v)
         }, 'bloomRadius')
 
         this.addSlider(body, 'Threshold', 0.0, 1.0, 0.01, this.params.bloomThreshold, (v) => {
@@ -213,7 +207,6 @@ export class ControlPanel {
         vsSelect.value = this.params.velocityScaling
         vsSelect.addEventListener('change', () => {
             this.params.velocityScaling = vsSelect.value as VelocityScaling
-            this.callbacks.onVelocityScalingChange(this.params.velocityScaling)
         })
         vsRow.appendChild(vsLabel)
         vsRow.appendChild(vsSelect)
@@ -254,15 +247,15 @@ export class ControlPanel {
 
     private reset() {
         Object.assign(this.params, defaultParams)
-        this.material.size = this.params.size
-        this.material.opacity = this.params.opacity
-        this.updateBloom()
+        this.callbacks.onSizeChange(this.params.size)
+        this.callbacks.onOpacityChange(this.params.opacity)
+        this.callbacks.onBloomStrengthChange(this.params.bloomStrength)
+        this.callbacks.onBloomRadiusChange(this.params.bloomRadius)
         this.callbacks.onParticleCountChange(this.params.particleCount)
         this.callbacks.onLifetimeChange()
         this.callbacks.onTrailToggle(this.params.trailsEnabled)
         this.callbacks.onTrailDecayChange(this.params.trailDecay)
         this.callbacks.onColormapChange(this.params.colormap)
-        this.callbacks.onVelocityScalingChange(this.params.velocityScaling)
         this.callbacks.onBackgroundColorChange(this.params.backgroundColor)
         this.callbacks.onOpacityChange(this.params.opacity)
         this.callbacks.onBloomThresholdChange(this.params.bloomThreshold)
@@ -389,11 +382,6 @@ export class ControlPanel {
         parent.appendChild(row)
 
         return input
-    }
-
-    private updateBloom() {
-        this.bloomPass.strength = this.params.bloomStrength
-        this.bloomPass.radius = this.params.bloomRadius
     }
 
     private formatValue(value: number, step: number) {

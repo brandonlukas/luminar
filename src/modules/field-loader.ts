@@ -1,11 +1,11 @@
-import type { VectorDatum, FieldTransform } from '../lib/types'
+import type { VectorDatum, FieldTransform, FieldBounds } from '../lib/types'
 import { WORLD_EXTENT } from '../lib/constants'
 
 export class FieldLoader {
-    private onFieldLoaded: (data: VectorDatum[], transform: FieldTransform, label: string) => void
+    private onFieldLoaded: (data: VectorDatum[], transform: FieldTransform, label: string, bounds: FieldBounds) => void
 
     constructor(
-        onFieldLoaded: (data: VectorDatum[], transform: FieldTransform, label: string) => void,
+        onFieldLoaded: (data: VectorDatum[], transform: FieldTransform, label: string, bounds: FieldBounds) => void,
     ) {
         this.onFieldLoaded = onFieldLoaded
     }
@@ -20,7 +20,7 @@ export class FieldLoader {
             if (Array.isArray(data) && data.length > 0) {
                 const { transform, bounds } = this.computeFieldTransform(data)
                 const label = `default \u00B7 ${data.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`
-                this.onFieldLoaded(data, transform, label)
+                this.onFieldLoaded(data, transform, label, bounds)
                 console.log('Field bounds:', bounds, 'scale:', transform.scale)
             }
         } catch (error) {

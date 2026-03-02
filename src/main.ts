@@ -28,7 +28,6 @@ const dropOverlay = document.getElementById('drop-overlay')!
 // State
 const params: ParticleParams = { ...defaultParams }
 let currentLut = getColormapLut(params.colormap)
-let fieldLabel = 'No field loaded'
 
 // Scene setup
 const renderer = new WebGLRenderer({ antialias: false, alpha: true })
@@ -70,15 +69,13 @@ scene.add(points)
 const particleSystem = new ParticleSystem(geometry, params)
 particleSystem.init()
 
-const fieldLoader = new FieldLoader((data, transform, label) => {
-    particleSystem.setFieldData(data, transform)
-    // field state tracked via fieldLabel
-    fieldLabel = label
-    updateFieldStatus()
+const fieldLoader = new FieldLoader((data, transform, label, bounds) => {
+    particleSystem.setFieldData(data, transform, bounds)
+    setFieldStatus(label)
 })
 
 // Control panel
-const controlPanel = new ControlPanel(sidebar, params, material, bloomPass, {
+const controlPanel = new ControlPanel(sidebar, params, {
     onParticleCountChange: (count) => {
         particleSystem.resizeBuffers(count)
         statusParticles.textContent = `${count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count} particles`
@@ -91,14 +88,20 @@ const controlPanel = new ControlPanel(sidebar, params, material, bloomPass, {
     onColormapChange: (name) => {
         currentLut = getColormapLut(name)
     },
-    onVelocityScalingChange: () => {
-        // Velocity scaling mode is read directly from params in the particle system
-    },
     onBackgroundColorChange: (color) => {
         scene.background = new Color(color)
     },
+    onSizeChange: (value) => {
+        material.size = value
+    },
     onOpacityChange: (value) => {
         material.opacity = value
+    },
+    onBloomStrengthChange: (value) => {
+        bloomPass.strength = value
+    },
+    onBloomRadiusChange: (value) => {
+        bloomPass.radius = value
     },
     onBloomThresholdChange: (value) => {
         bloomPass.threshold = value
@@ -192,12 +195,11 @@ function updateTrails(enabled: boolean, decay: number) {
 function clearField() {
     particleSystem.setFieldData(null, { scale: 1, offsetX: 0, offsetY: 0 })
     particleSystem.reseedLifetimes()
-    fieldLabel = 'No field loaded'
-    updateFieldStatus()
+    setFieldStatus('No field loaded')
 }
 
-function updateFieldStatus() {
-    statusField.textContent = fieldLabel
+function setFieldStatus(text: string) {
+    statusField.textContent = text
 }
 
 async function loadCsvFile(file: File) {
@@ -205,20 +207,16 @@ async function loadCsvFile(file: File) {
         const text = await file.text()
         const rows = parseCsv(text)
         if (!rows.length) {
-            fieldLabel = 'CSV empty or invalid'
-            updateFieldStatus()
+            setFieldStatus('CSV empty or invalid')
             return
         }
         const { transform, bounds } = fieldLoader.computeFieldTransform(rows)
         const label = `${file.name} \u00B7 ${rows.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`
-        particleSystem.setFieldData(rows, transform)
-        // field state tracked via fieldLabel
-        fieldLabel = label
-        updateFieldStatus()
+        particleSystem.setFieldData(rows, transform, bounds)
+        setFieldStatus(label)
     } catch (error) {
         console.error('Failed to load CSV', error)
-        fieldLabel = 'CSV load error'
-        updateFieldStatus()
+        setFieldStatus('CSV load error')
     }
 }
 
