@@ -169,17 +169,23 @@ async function loadCsvFile(file: File) {
 function setupDragAndDrop() {
     let dragCounter = 0
 
+    const isFileDrag = (e: DragEvent) =>
+        e.dataTransfer?.types.includes('Files') ?? false
+
     window.addEventListener('dragover', (e) => {
+        if (!isFileDrag(e)) return
         e.preventDefault()
     })
 
     window.addEventListener('dragenter', (e) => {
+        if (!isFileDrag(e)) return
         e.preventDefault()
         dragCounter++
         dropOverlay.style.display = 'flex'
     })
 
     window.addEventListener('dragleave', (e) => {
+        if (!isFileDrag(e)) return
         e.preventDefault()
         dragCounter--
         if (dragCounter <= 0) {
@@ -189,6 +195,7 @@ function setupDragAndDrop() {
     })
 
     window.addEventListener('drop', (e) => {
+        if (!isFileDrag(e)) return
         e.preventDefault()
         dragCounter = 0
         dropOverlay.style.display = 'none'

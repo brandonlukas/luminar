@@ -189,6 +189,10 @@ export class ViewportGrid {
         let draggedIndex: number | null = null
 
         this.gridContainer.addEventListener('dragstart', (e) => {
+            if (this.activeCount < 2) {
+                e.preventDefault()
+                return
+            }
             const target = (e.target as HTMLElement).closest('.slot') as HTMLElement | null
             if (!target) return
             draggedIndex = parseInt(target.dataset.slotIndex ?? '-1', 10)
