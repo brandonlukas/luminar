@@ -24,6 +24,7 @@ const btnAspect = document.getElementById('btn-aspect')!
 const filePickerBtn = document.getElementById('file-picker-btn')!
 const fileInput = document.getElementById('file-input') as HTMLInputElement
 const dropOverlay = document.getElementById('drop-overlay')!
+const emptyState = document.getElementById('empty-state')!
 
 // State
 const params: ParticleParams = { ...defaultParams }
@@ -65,13 +66,16 @@ const material = new PointsMaterial({
 const points = new Points(geometry, material)
 scene.add(points)
 
-// Initialize particle system
+// Initialize particle system (hidden until a field is loaded)
 const particleSystem = new ParticleSystem(geometry, params)
 particleSystem.init()
+points.visible = false
 
 const fieldLoader = new FieldLoader((data, transform, label, bounds) => {
     particleSystem.setFieldData(data, transform, bounds)
     setFieldStatus(label)
+    points.visible = true
+    emptyState.classList.add('empty-state--hidden')
 })
 
 // Control panel
@@ -156,8 +160,7 @@ const resizeObserver = new ResizeObserver(() => resize())
 resizeObserver.observe(canvasWrap)
 resize()
 
-// Load default field
-fieldLoader.load()
+// No default field — show empty state until user loads a CSV
 
 // Start animation
 let lastTime = performance.now()
@@ -196,6 +199,8 @@ function clearField() {
     particleSystem.setFieldData(null, { scale: 1, offsetX: 0, offsetY: 0 })
     particleSystem.reseedLifetimes()
     setFieldStatus('No field loaded')
+    points.visible = false
+    emptyState.classList.remove('empty-state--hidden')
 }
 
 function setFieldStatus(text: string) {
@@ -214,6 +219,8 @@ async function loadCsvFile(file: File) {
         const label = `${file.name} \u00B7 ${rows.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`
         particleSystem.setFieldData(rows, transform, bounds)
         setFieldStatus(label)
+        points.visible = true
+        emptyState.classList.add('empty-state--hidden')
     } catch (error) {
         console.error('Failed to load CSV', error)
         setFieldStatus('CSV load error')
