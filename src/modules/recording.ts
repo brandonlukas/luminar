@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js'
 import { FFmpegEncoder } from './ffmpeg-encoder'
 import { VIEW_SIZE } from '../lib/constants'
+import { createSection } from '../lib/dom-helpers'
 import type { ViewportGrid } from './viewport-grid'
 import type { FieldSlot } from './field-slot'
 import type { ParticleParams } from '../lib/types'
@@ -43,26 +44,7 @@ export class RecordingManager {
     }
 
     createControls(container: HTMLElement) {
-        const section = document.createElement('div')
-        section.className = 'controls__section'
-
-        const header = document.createElement('div')
-        header.className = 'controls__section-header'
-        const title = document.createElement('span')
-        title.className = 'controls__section-title'
-        title.textContent = 'Export'
-        const arrow = document.createElement('span')
-        arrow.className = 'controls__section-arrow'
-        arrow.textContent = '\u25BC'
-        header.appendChild(title)
-        header.appendChild(arrow)
-
-        const body = document.createElement('div')
-        body.className = 'controls__section-body'
-
-        header.addEventListener('click', () => {
-            section.classList.toggle('controls__section--collapsed')
-        })
+        const { section, body } = createSection('Export')
 
         // Resolution
         const resRow = document.createElement('label')
@@ -174,8 +156,6 @@ export class RecordingManager {
         this.recordStatus.style.display = 'none'
         body.appendChild(this.recordStatus)
 
-        section.appendChild(header)
-        section.appendChild(body)
         container.appendChild(section)
     }
 
@@ -319,7 +299,6 @@ export class RecordingManager {
 
             if (!this.isExporting) {
                 encoder.dispose()
-                for (const p of pipelines) p.renderer.dispose()
                 return
             }
 
@@ -373,7 +352,6 @@ export class RecordingManager {
 
             if (!this.isExporting) {
                 encoder.dispose()
-                for (const p of pipelines) p.renderer.dispose()
                 this.updateUI('Export cancelled.')
                 setTimeout(() => {
                     if (this.recordStatus) this.recordStatus.style.display = 'none'
@@ -399,8 +377,6 @@ export class RecordingManager {
                 if (this.recordStatus) this.recordStatus.style.display = 'none'
             }, 3000)
 
-            // Cleanup
-            for (const p of pipelines) p.renderer.dispose()
             encoder.dispose()
 
         } catch (error) {
@@ -408,8 +384,8 @@ export class RecordingManager {
             this.updateUI(
                 `Export failed: ${error instanceof Error ? error.message : String(error)}`,
             )
-            for (const p of pipelines) p.renderer.dispose()
         } finally {
+            for (const p of pipelines) p.renderer.dispose()
             this.isExporting = false
             this.params.paused = wasPaused
             this.resetUI()

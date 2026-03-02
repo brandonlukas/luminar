@@ -1,6 +1,7 @@
 import type { ParticleParams, SliderHandle, ColormapName, VelocityScaling } from '../lib/types'
 import { defaultParams, defaultSlotParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
 import { COLORMAPS } from '../lib/colormaps'
+import { createSection, formatCount } from '../lib/dom-helpers'
 import type { FieldSlot } from './field-slot'
 
 export interface ControlCallbacks {
@@ -74,7 +75,7 @@ export class ControlPanel {
     }
 
     private buildSlotSection() {
-        const { section, body } = this.createSection('Selected Field')
+        const { section, body } = createSection('Selected Field')
         this.slotSection = section
         section.style.display = 'none' // hidden until a slot is selected
 
@@ -146,7 +147,7 @@ export class ControlPanel {
     }
 
     private buildParticlesSection() {
-        const { section, body } = this.createSection('Particles')
+        const { section, body } = createSection('Particles')
 
         // Particle count (logarithmic)
         const logMin = Math.log(100)
@@ -169,7 +170,7 @@ export class ControlPanel {
         countInput.addEventListener('input', () => {
             const t = parseFloat(countInput.value)
             const count = Math.round(Math.exp(logMin + t * (logMax - logMin)))
-            countValue.textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
+            countValue.textContent = formatCount(count)
             this.params.particleCount = count
             this.callbacks.onParticleCountChange(count)
         })
@@ -240,7 +241,7 @@ export class ControlPanel {
     }
 
     private buildBloomSection() {
-        const { section, body } = this.createSection('Bloom')
+        const { section, body } = createSection('Bloom')
 
         this.addSlider(body, 'Strength', 0.2, 2.5, 0.05, this.params.bloomStrength, (v) => {
             this.params.bloomStrength = v
@@ -261,7 +262,7 @@ export class ControlPanel {
     }
 
     private buildColorSection() {
-        const { section, body } = this.createSection('Color')
+        const { section, body } = createSection('Color')
 
         // Background color
         const bgRow = document.createElement('label')
@@ -305,7 +306,6 @@ export class ControlPanel {
         this.callbacks.onTrailToggle(this.params.trailsEnabled)
         this.callbacks.onTrailDecayChange(this.params.trailDecay)
         this.callbacks.onBackgroundColorChange(this.params.backgroundColor)
-        this.callbacks.onOpacityChange(this.params.opacity)
         this.callbacks.onBloomThresholdChange(this.params.bloomThreshold)
 
         // Reset per-slot to defaults
@@ -338,37 +338,6 @@ export class ControlPanel {
         if (this.trailToggle) {
             this.trailToggle.checked = this.params.trailsEnabled
         }
-    }
-
-    private createSection(title: string) {
-        const section = document.createElement('div')
-        section.className = 'controls__section'
-
-        const header = document.createElement('div')
-        header.className = 'controls__section-header'
-
-        const titleEl = document.createElement('span')
-        titleEl.className = 'controls__section-title'
-        titleEl.textContent = title
-
-        const arrow = document.createElement('span')
-        arrow.className = 'controls__section-arrow'
-        arrow.textContent = '\u25BC'
-
-        header.appendChild(titleEl)
-        header.appendChild(arrow)
-
-        const body = document.createElement('div')
-        body.className = 'controls__section-body'
-
-        header.addEventListener('click', () => {
-            section.classList.toggle('controls__section--collapsed')
-        })
-
-        section.appendChild(header)
-        section.appendChild(body)
-
-        return { section, body }
     }
 
     private addSlider(

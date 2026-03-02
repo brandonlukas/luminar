@@ -143,7 +143,7 @@ export class FieldSlot {
     // ── Global settings propagation ───────────────
 
     syncGlobalParams(params: ParticleParams): void {
-        this.scene.background = new Color(params.backgroundColor)
+        (this.scene.background as Color).set(params.backgroundColor)
         this.material.size = params.size
         this.material.opacity = params.opacity
         this.bloomPass.strength = params.bloomStrength
@@ -217,6 +217,10 @@ export class FieldSlot {
     // ── Cleanup ───────────────────────────────────
 
     dispose(): void {
+        this.composer.renderTarget1.dispose()
+        this.composer.renderTarget2.dispose()
+        this.bloomPass.dispose()
+        this.afterimagePass.dispose()
         this.renderer.dispose()
         this.geometry.dispose()
         this.material.dispose()

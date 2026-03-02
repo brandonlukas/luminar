@@ -11,7 +11,7 @@ export class ViewportGrid {
     private gridContainer: HTMLDivElement
     private emptyState: HTMLElement
     private slots: (FieldSlot | null)[] = new Array(MAX_SLOTS).fill(null)
-    private activeCount = 0
+    private cachedActiveSlots: FieldSlot[] = []
     private selectedSlot: FieldSlot | null = null
     private globalParams: ParticleParams
     private callbacks: ViewportGridCallbacks
@@ -46,12 +46,8 @@ export class ViewportGrid {
         this.slots[idx] = slot
 
         this.gridContainer.appendChild(slot.container)
-        this.activeCount++
+        this.invalidateActiveCache()
         this.updateLayout()
-
-        // Resize after layout settles
-        requestAnimationFrame(() => slot.resize())
-
         this.selectSlot(slot)
         this.emptyState.classList.add('empty-state--hidden')
 
@@ -65,7 +61,7 @@ export class ViewportGrid {
         const wasSelected = this.selectedSlot === slot
         slot.dispose()
         this.slots[index] = null
-        this.activeCount--
+        this.invalidateActiveCache()
 
         if (wasSelected) {
             const next = this.getActiveSlots()[0] ?? null
@@ -74,7 +70,7 @@ export class ViewportGrid {
 
         this.updateLayout()
 
-        if (this.activeCount === 0) {
+        if (this.cachedActiveSlots.length === 0) {
             this.emptyState.classList.remove('empty-state--hidden')
         }
     }
@@ -110,6 +106,7 @@ export class ViewportGrid {
             this.slots[b]!.index = b
             this.slots[b]!.container.dataset.slotIndex = String(b)
         }
+        this.invalidateActiveCache()
         this.rebuildDOM()
         requestAnimationFrame(() => this.resizeAll())
     }
@@ -117,11 +114,12 @@ export class ViewportGrid {
     // ── Layout ────────────────────────────────────
 
     private updateLayout(): void {
-        const mode = this.activeCount <= 1 ? 'single' : 'dual'
+        const count = this.cachedActiveSlots.length
+        const mode = count <= 1 ? 'single' : 'dual'
         this.gridContainer.dataset.layout = mode
         this.rebuildDOM()
         requestAnimationFrame(() => this.resizeAll())
-        this.callbacks.onSlotCountChanged(this.activeCount)
+        this.callbacks.onSlotCountChanged(count)
     }
 
     private rebuildDOM(): void {
@@ -139,15 +137,19 @@ export class ViewportGrid {
     // ── Queries ───────────────────────────────────
 
     getActiveSlots(): FieldSlot[] {
-        return this.slots.filter((s): s is FieldSlot => s !== null)
+        return this.cachedActiveSlots
     }
 
     isFull(): boolean {
-        return this.activeCount >= MAX_SLOTS
+        return this.cachedActiveSlots.length >= MAX_SLOTS
     }
 
     getActiveCount(): number {
-        return this.activeCount
+        return this.cachedActiveSlots.length
+    }
+
+    private invalidateActiveCache(): void {
+        this.cachedActiveSlots = this.slots.filter((s): s is FieldSlot => s !== null)
     }
 
     // ── Global param propagation ──────────────────
@@ -195,7 +197,7 @@ export class ViewportGrid {
         let draggedIndex: number | null = null
 
         this.gridContainer.addEventListener('dragstart', (e) => {
-            if (this.activeCount < 2) {
+            if (this.cachedActiveSlots.length < 2) {
                 e.preventDefault()
                 return
             }

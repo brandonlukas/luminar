@@ -4,6 +4,7 @@ import { RecordingManager } from './modules/recording'
 import { ViewportGrid } from './modules/viewport-grid'
 import { computeFieldTransform } from './modules/field-loader'
 import { defaultParams, MAX_SLOTS } from './lib/constants'
+import { formatCount } from './lib/dom-helpers'
 import { parseCsv } from './lib/csv-parser'
 import type { ParticleParams } from './lib/types'
 
@@ -49,7 +50,7 @@ const controlPanel = new ControlPanel(sidebar, params, {
         for (const slot of grid.getActiveSlots()) {
             slot.resizeBuffers(count)
         }
-        statusParticles.textContent = `${count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count} particles`
+        statusParticles.textContent = `${formatCount(count)} particles`
     },
     onLifetimeChange: () => {
         for (const slot of grid.getActiveSlots()) {
