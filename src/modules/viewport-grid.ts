@@ -102,8 +102,14 @@ export class ViewportGrid {
         const tmp = this.slots[a]
         this.slots[a] = this.slots[b]
         this.slots[b] = tmp
-        if (this.slots[a]) this.slots[a]!.index = a
-        if (this.slots[b]) this.slots[b]!.index = b
+        if (this.slots[a]) {
+            this.slots[a]!.index = a
+            this.slots[a]!.container.dataset.slotIndex = String(a)
+        }
+        if (this.slots[b]) {
+            this.slots[b]!.index = b
+            this.slots[b]!.container.dataset.slotIndex = String(b)
+        }
         this.rebuildDOM()
         requestAnimationFrame(() => this.resizeAll())
     }
