@@ -16,6 +16,7 @@ import type { ParticleParams } from './lib/types'
 // DOM references
 const canvasWrap = document.getElementById('canvas-wrap')!
 const sidebar = document.getElementById('sidebar')!
+const exportPanel = document.getElementById('export-panel')!
 const statusFps = document.getElementById('status-fps')!
 const statusParticles = document.getElementById('status-particles')!
 const statusField = document.getElementById('status-field')!
@@ -127,7 +128,7 @@ const recordingManager = new RecordingManager(
 
 // Build UI
 controlPanel.create()
-recordingManager.createControls(sidebar)
+recordingManager.createControls(exportPanel)
 
 // File picker
 filePickerBtn.addEventListener('click', () => fileInput.click())

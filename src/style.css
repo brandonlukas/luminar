@@ -23,11 +23,11 @@ body {
 #app {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px 1fr 260px;
   grid-template-areas:
-    "topbar topbar"
-    "sidebar viewport"
-    "statusbar statusbar";
+    "topbar topbar topbar"
+    "sidebar viewport export"
+    "statusbar statusbar statusbar";
   height: 100vh;
   overflow: hidden;
 }
@@ -97,6 +97,36 @@ body {
   border-right: 1px solid rgba(120, 180, 255, 0.15);
   backdrop-filter: blur(10px);
   color: #dfe8ff;
+}
+
+/* ── Export Panel (right) ──────────────────────── */
+
+.export-panel {
+  grid-area: export;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 14px 24px;
+  background: rgba(6, 10, 22, 0.85);
+  border-left: 1px solid rgba(120, 180, 255, 0.15);
+  backdrop-filter: blur(10px);
+  color: #dfe8ff;
+}
+
+.export-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.export-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.export-panel::-webkit-scrollbar-thumb {
+  background: rgba(120, 180, 255, 0.2);
+  border-radius: 2px;
+}
+
+.export-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 180, 255, 0.4);
 }
 
 /* ── Viewport ───────────────────────────────────── */
