@@ -36,6 +36,7 @@ export class FFmpegEncoder {
 
     async finalize(
         width: number, height: number, fps: number, crf: number,
+        vflip = true,
     ): Promise<Blob> {
         const frameSize = width * height * 4
         const totalSize = this.frames.length * frameSize
@@ -51,19 +52,22 @@ export class FFmpegEncoder {
         await this.ffmpeg.writeFile('input.raw', concat)
 
         // Encode: FFmpeg reads the continuous stream (no %05d pattern needed)
-        await this.ffmpeg.exec([
+        const args = [
             '-f', 'rawvideo',
             '-pix_fmt', 'rgba',
             '-s', `${width}x${height}`,
             '-r', String(fps),
             '-i', 'input.raw',
-            '-vf', 'vflip',
+        ]
+        if (vflip) args.push('-vf', 'vflip')
+        args.push(
             '-c:v', 'libx264',
             '-crf', String(crf),
             '-pix_fmt', 'yuv420p',
             '-movflags', '+faststart',
             'output.mp4',
-        ])
+        )
+        await this.ffmpeg.exec(args)
 
         const data = await this.ffmpeg.readFile('output.mp4')
         const raw = data instanceof Uint8Array

@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Sphere, Vector3 } from 'three'
-import type { VectorSample, VectorDatum, ParticleParams, FieldTransform, FieldBounds } from '../lib/types'
+import type { VectorSample, VectorDatum, ParticleParams, SlotParams, FieldTransform, FieldBounds } from '../lib/types'
 import { WORLD_EXTENT, FLOW_SCALE, SPEED_TO_GLOW, JITTER } from '../lib/constants'
 
 export class ParticleSystem {
@@ -20,6 +20,7 @@ export class ParticleSystem {
     // Three.js resources
     public geometry: BufferGeometry
     private params: ParticleParams
+    slotParams: SlotParams
 
     // Velocity range for colormap mapping
     velocityMin = 0
@@ -27,9 +28,10 @@ export class ParticleSystem {
     private velocityLogMin = 0
     private velocityLogMax = 0
 
-    constructor(geometry: BufferGeometry, params: ParticleParams) {
+    constructor(geometry: BufferGeometry, params: ParticleParams, slotParams: SlotParams) {
         this.geometry = geometry
         this.params = params
+        this.slotParams = slotParams
         this.positions = new Float32Array(params.particleCount * 3)
         this.colors = new Float32Array(params.particleCount * 3)
         this.lifetimes = new Float32Array(params.particleCount)
@@ -284,7 +286,7 @@ export class ParticleSystem {
     private applyColor(i3: number, velocityMagnitude: number, lut: Float32Array) {
         let t: number
 
-        switch (this.params.velocityScaling) {
+        switch (this.slotParams.velocityScaling) {
             case 'log':
                 t = (Math.log1p(velocityMagnitude) - this.velocityLogMin) /
                     (this.velocityLogMax - this.velocityLogMin || 1)

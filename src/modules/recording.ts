@@ -1,12 +1,21 @@
-import { OrthographicCamera, Scene, Vector2, WebGLRenderer } from 'three'
+import { OrthographicCamera, Vector2, WebGLRenderer } from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js'
 import { FFmpegEncoder } from './ffmpeg-encoder'
 import { VIEW_SIZE } from '../lib/constants'
-import type { ParticleSystem } from './particle-system'
+import type { ViewportGrid } from './viewport-grid'
+import type { FieldSlot } from './field-slot'
 import type { ParticleParams } from '../lib/types'
+
+interface SlotExportPipeline {
+    slot: FieldSlot
+    renderer: WebGLRenderer
+    composer: EffectComposer
+    afterimagePass: AfterimagePass
+    region: { x: number; y: number; w: number; h: number }
+}
 
 export class RecordingManager {
     private isExporting = false
@@ -19,36 +28,18 @@ export class RecordingManager {
     private recordStatus: HTMLDivElement | null = null
     private progressBar: HTMLProgressElement | null = null
 
-    private scene: Scene
-    private camera: OrthographicCamera
-    private particleSystem: ParticleSystem
+    private grid: ViewportGrid
     private params: ParticleParams
-    private bloomPass: UnrealBloomPass
-    private afterimagePass: AfterimagePass
-    private getLut: () => Float32Array
-    private aspectRatio: () => '16:9' | '4:3'
-    private getCanvasSize: () => { width: number; height: number }
+    private getAspectRatio: () => '16:9' | '4:3'
 
     constructor(
-        scene: Scene,
-        camera: OrthographicCamera,
-        particleSystem: ParticleSystem,
+        grid: ViewportGrid,
         params: ParticleParams,
-        bloomPass: UnrealBloomPass,
-        afterimagePass: AfterimagePass,
-        getLut: () => Float32Array,
-        aspectRatio: () => '16:9' | '4:3',
-        getCanvasSize: () => { width: number; height: number },
+        getAspectRatio: () => '16:9' | '4:3',
     ) {
-        this.scene = scene
-        this.camera = camera
-        this.particleSystem = particleSystem
+        this.grid = grid
         this.params = params
-        this.bloomPass = bloomPass
-        this.afterimagePass = afterimagePass
-        this.getLut = getLut
-        this.aspectRatio = aspectRatio
-        this.getCanvasSize = getCanvasSize
+        this.getAspectRatio = getAspectRatio
     }
 
     createControls(container: HTMLElement) {
@@ -189,7 +180,7 @@ export class RecordingManager {
     }
 
     private getExportDimensions(): { width: number; height: number } {
-        const ratio = this.aspectRatio()
+        const ratio = this.getAspectRatio()
         const ar = ratio === '4:3' ? 4 / 3 : 16 / 9
 
         let w: number, h: number
@@ -200,12 +191,37 @@ export class RecordingManager {
                 w = Math.round(2160 * ar); h = 2160; break
             case 'current':
             default: {
-                const size = this.getCanvasSize()
-                w = size.width; h = size.height
+                // Use first active slot's canvas size, or a fallback
+                const slots = this.grid.getActiveSlots()
+                if (slots.length > 0) {
+                    const size = slots[0].getRendererSize()
+                    // Scale up for multi-slot (side-by-side)
+                    w = size.width * slots.length
+                    h = size.height
+                } else {
+                    w = 1920; h = 1080
+                }
             }
         }
         // Ensure even dimensions (required for yuv420p)
         return { width: w - (w % 2), height: h - (h % 2) }
+    }
+
+    private computeSlotRegions(
+        count: number,
+        totalW: number,
+        totalH: number,
+    ): Array<{ x: number; y: number; w: number; h: number }> {
+        const gap = 2
+        if (count <= 1) {
+            return [{ x: 0, y: 0, w: totalW, h: totalH }]
+        }
+        // Side by side
+        const halfW = Math.floor((totalW - gap) / 2)
+        return [
+            { x: 0, y: 0, w: halfW, h: totalH },
+            { x: halfW + gap, y: 0, w: totalW - halfW - gap, h: totalH },
+        ]
     }
 
     private updateUI(status: string, pct?: number) {
@@ -231,8 +247,10 @@ export class RecordingManager {
 
     private async startExport(): Promise<void> {
         if (this.isExporting) return
-        this.isExporting = true
+        const slots = this.grid.getActiveSlots()
+        if (slots.length === 0) return
 
+        this.isExporting = true
         const wasPaused = this.params.paused
         this.params.paused = true
 
@@ -240,45 +258,59 @@ export class RecordingManager {
             this.recordButton.textContent = 'Cancel export'
         }
 
+        const pipelines: SlotExportPipeline[] = []
+
         try {
             const { width, height } = this.getExportDimensions()
+            const regions = this.computeSlotRegions(slots.length, width, height)
 
-            // Create offscreen renderer
-            const offscreenCanvas = document.createElement('canvas')
-            offscreenCanvas.width = width
-            offscreenCanvas.height = height
+            // Create per-slot offscreen renderers
+            for (let i = 0; i < slots.length; i++) {
+                const slot = slots[i]
+                const region = regions[i]
 
-            const offscreenRenderer = new WebGLRenderer({
-                canvas: offscreenCanvas,
-                preserveDrawingBuffer: true,
-                antialias: false,
-                alpha: false,
-            })
-            offscreenRenderer.setSize(width, height, false)
+                const offCanvas = document.createElement('canvas')
+                offCanvas.width = region.w
+                offCanvas.height = region.h
 
-            // Set up camera for export resolution
-            const aspect = width / height
-            const exportCamera = this.camera.clone()
-            exportCamera.left = -VIEW_SIZE * aspect
-            exportCamera.right = VIEW_SIZE * aspect
-            exportCamera.top = VIEW_SIZE
-            exportCamera.bottom = -VIEW_SIZE
-            exportCamera.updateProjectionMatrix()
+                const offRenderer = new WebGLRenderer({
+                    canvas: offCanvas,
+                    preserveDrawingBuffer: true,
+                    antialias: false,
+                    alpha: false,
+                })
+                offRenderer.setSize(region.w, region.h, false)
 
-            // Create offscreen composer with matching passes
-            const offscreenComposer = new EffectComposer(offscreenRenderer)
-            offscreenComposer.addPass(new RenderPass(this.scene, exportCamera))
-            offscreenComposer.addPass(new UnrealBloomPass(
-                new Vector2(width, height),
-                this.bloomPass.strength,
-                this.bloomPass.radius,
-                this.bloomPass.threshold,
-            ))
-            const exportAfterimage = new AfterimagePass(
-                this.afterimagePass.uniforms['damp'].value,
-            )
-            exportAfterimage.enabled = this.afterimagePass.enabled
-            offscreenComposer.addPass(exportAfterimage)
+                const aspect = region.w / region.h
+                const exportCamera = new OrthographicCamera(
+                    -VIEW_SIZE * aspect, VIEW_SIZE * aspect,
+                    VIEW_SIZE, -VIEW_SIZE,
+                    0.1, 10,
+                )
+                exportCamera.position.z = 2
+
+                const offComposer = new EffectComposer(offRenderer)
+                offComposer.addPass(new RenderPass(slot.scene, exportCamera))
+                offComposer.addPass(new UnrealBloomPass(
+                    new Vector2(region.w, region.h),
+                    slot.bloomPass.strength,
+                    slot.bloomPass.radius,
+                    slot.bloomPass.threshold,
+                ))
+                const exportAfterimage = new AfterimagePass(
+                    slot.afterimagePass.uniforms['damp'].value,
+                )
+                exportAfterimage.enabled = slot.afterimagePass.enabled
+                offComposer.addPass(exportAfterimage)
+
+                pipelines.push({ slot, renderer: offRenderer, composer: offComposer, afterimagePass: exportAfterimage, region })
+            }
+
+            // Composite canvas (2D)
+            const compositeCanvas = document.createElement('canvas')
+            compositeCanvas.width = width
+            compositeCanvas.height = height
+            const ctx = compositeCanvas.getContext('2d')!
 
             // Init FFmpeg encoder
             this.updateUI('Loading encoder...')
@@ -287,24 +319,24 @@ export class RecordingManager {
 
             if (!this.isExporting) {
                 encoder.dispose()
-                offscreenRenderer.dispose()
+                for (const p of pipelines) p.renderer.dispose()
                 return
             }
 
             const fps = this.recordingFps
             const fixedDt = 1 / fps
             const totalFrames = fps * this.recordingDuration
-            const gl = offscreenRenderer.getContext()
-            const pixelBuffer = new Uint8Array(width * height * 4)
-            const lut = this.getLut()
 
-            // Warm-up frames for trail accumulation (not captured)
-            if (exportAfterimage.enabled) {
+            // Warm-up frames for trail accumulation
+            const hasTrails = pipelines.some(p => p.afterimagePass.enabled)
+            if (hasTrails) {
                 const warmupFrames = fps
                 this.updateUI('Warming up trails...', 0)
                 for (let i = 0; i < warmupFrames; i++) {
-                    this.particleSystem.update(fixedDt, lut)
-                    offscreenComposer.render()
+                    for (const p of pipelines) {
+                        p.slot.update(fixedDt)
+                        p.composer.render()
+                    }
                     if (i % 5 === 0) await new Promise(r => setTimeout(r, 0))
                 }
             }
@@ -313,16 +345,26 @@ export class RecordingManager {
             for (let i = 0; i < totalFrames; i++) {
                 if (!this.isExporting) break
 
-                this.particleSystem.update(fixedDt, lut)
-                offscreenComposer.render()
+                // Update all particle systems
+                for (const p of pipelines) {
+                    p.slot.update(fixedDt)
+                }
 
-                gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer)
-                encoder.addFrame(new Uint8Array(pixelBuffer))
+                // Render + composite
+                ctx.fillStyle = this.params.backgroundColor
+                ctx.fillRect(0, 0, width, height)
+
+                for (const p of pipelines) {
+                    p.composer.render()
+                    ctx.drawImage(p.renderer.domElement, p.region.x, p.region.y, p.region.w, p.region.h)
+                }
+
+                // Read pixels from composite
+                const imageData = ctx.getImageData(0, 0, width, height)
+                encoder.addFrame(new Uint8Array(imageData.data.buffer))
 
                 const pct = ((i + 1) / totalFrames) * 100
-                this.updateUI(
-                    `Rendering frame ${i + 1} / ${totalFrames}...`, pct,
-                )
+                this.updateUI(`Rendering frame ${i + 1} / ${totalFrames}...`, pct)
 
                 if (i % 5 === 0) {
                     await new Promise(r => setTimeout(r, 0))
@@ -331,7 +373,7 @@ export class RecordingManager {
 
             if (!this.isExporting) {
                 encoder.dispose()
-                offscreenRenderer.dispose()
+                for (const p of pipelines) p.renderer.dispose()
                 this.updateUI('Export cancelled.')
                 setTimeout(() => {
                     if (this.recordStatus) this.recordStatus.style.display = 'none'
@@ -341,7 +383,8 @@ export class RecordingManager {
 
             // Encode
             this.updateUI('Encoding MP4...', 100)
-            const blob = await encoder.finalize(width, height, fps, this.exportCrf)
+            // vflip=false: pixels come from 2D canvas (already top-to-bottom)
+            const blob = await encoder.finalize(width, height, fps, this.exportCrf, false)
 
             // Download
             const url = URL.createObjectURL(blob)
@@ -357,7 +400,7 @@ export class RecordingManager {
             }, 3000)
 
             // Cleanup
-            offscreenRenderer.dispose()
+            for (const p of pipelines) p.renderer.dispose()
             encoder.dispose()
 
         } catch (error) {
@@ -365,6 +408,7 @@ export class RecordingManager {
             this.updateUI(
                 `Export failed: ${error instanceof Error ? error.message : String(error)}`,
             )
+            for (const p of pipelines) p.renderer.dispose()
         } finally {
             this.isExporting = false
             this.params.paused = wasPaused

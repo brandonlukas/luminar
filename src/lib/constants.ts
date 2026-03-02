@@ -1,4 +1,4 @@
-import type { ParticleParams } from './types'
+import type { ParticleParams, SlotParams } from './types'
 
 export const VIEW_SIZE = 1.8
 export const WORLD_EXTENT = 1.25
@@ -7,6 +7,7 @@ export const SPEED_TO_GLOW = 2.6
 export const JITTER = 0.015
 export const FIELD_BORDER_MIN = 0.01
 export const FIELD_BORDER_MAX = 0.1
+export const MAX_SLOTS = 2
 
 export const defaultParams: ParticleParams = {
     size: 2,
@@ -18,12 +19,15 @@ export const defaultParams: ParticleParams = {
     fieldValidDistance: 0.05,
     speed: 6.0,
     particleCount: 5000,
-    colormap: 'viridis',
-    velocityScaling: 'raw',
     backgroundColor: '#02040a',
     opacity: 0.9,
     trailsEnabled: false,
     trailDecay: 0.9,
     paused: false,
     aspectRatio: '16:9',
+}
+
+export const defaultSlotParams: SlotParams = {
+    colormap: 'viridis',
+    velocityScaling: 'raw',
 }

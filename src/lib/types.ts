@@ -4,6 +4,13 @@ export type SliderHandle = { input: HTMLInputElement; valueTag: HTMLSpanElement 
 export type ColormapName = 'viridis' | 'cividis' | 'inferno' | 'magma' | 'plasma' | 'coolwarm'
 export type VelocityScaling = 'raw' | 'log' | 'normalized'
 
+/** Per-slot settings that differ between vector fields */
+export interface SlotParams {
+    colormap: ColormapName
+    velocityScaling: VelocityScaling
+}
+
+/** Global settings shared across all slots */
 export interface ParticleParams {
     size: number
     bloomStrength: number
@@ -14,14 +21,21 @@ export interface ParticleParams {
     fieldValidDistance: number
     speed: number
     particleCount: number
-    colormap: ColormapName
-    velocityScaling: VelocityScaling
     backgroundColor: string
     opacity: number
     trailsEnabled: boolean
     trailDecay: number
     paused: boolean
     aspectRatio: '16:9' | '4:3'
+}
+
+/** Data associated with a loaded field in a slot */
+export interface SlotFieldData {
+    fileName: string
+    label: string
+    data: VectorDatum[]
+    transform: FieldTransform
+    bounds: FieldBounds
 }
 
 export interface FieldTransform {
@@ -35,4 +49,6 @@ export interface FieldBounds {
     maxX: number
     minY: number
     maxY: number
+    width: number
+    height: number
 }

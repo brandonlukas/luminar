@@ -1,29 +1,38 @@
 import type { ParticleParams, SliderHandle, ColormapName, VelocityScaling } from '../lib/types'
-import { defaultParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
+import { defaultParams, defaultSlotParams, FIELD_BORDER_MIN, FIELD_BORDER_MAX } from '../lib/constants'
 import { COLORMAPS } from '../lib/colormaps'
+import type { FieldSlot } from './field-slot'
 
 export interface ControlCallbacks {
+    // Global
     onParticleCountChange: (count: number) => void
     onLifetimeChange: () => void
     onTrailToggle: (enabled: boolean) => void
     onTrailDecayChange: (value: number) => void
-    onColormapChange: (name: ColormapName) => void
     onBackgroundColorChange: (color: string) => void
     onSizeChange: (value: number) => void
     onOpacityChange: (value: number) => void
     onBloomStrengthChange: (value: number) => void
     onBloomRadiusChange: (value: number) => void
     onBloomThresholdChange: (value: number) => void
-    onClearField: () => void
+    // Per-slot
+    onSlotColormapChange: (name: ColormapName) => void
+    onSlotVelocityScalingChange: (scaling: VelocityScaling) => void
+    onSlotRemove: () => void
 }
 
 export class ControlPanel {
     private controlHandles = new Map<string, SliderHandle>()
-    private selectHandles = new Map<string, HTMLSelectElement>()
     private trailToggle?: HTMLInputElement
     private container: HTMLElement
     private params: ParticleParams
     private callbacks: ControlCallbacks
+
+    // Per-slot section elements
+    private slotSection?: HTMLElement
+    private slotNameLabel?: HTMLElement
+    private slotColormapSelect?: HTMLSelectElement
+    private slotVelocitySelect?: HTMLSelectElement
 
     constructor(
         container: HTMLElement,
@@ -36,10 +45,104 @@ export class ControlPanel {
     }
 
     create() {
+        this.buildSlotSection()
         this.buildParticlesSection()
         this.buildBloomSection()
         this.buildColorSection()
         this.buildResetButton()
+    }
+
+    /** Update the per-slot section when selection changes */
+    updateSlotSection(slot: FieldSlot | null) {
+        if (!this.slotSection) return
+
+        if (!slot) {
+            this.slotSection.style.display = 'none'
+            return
+        }
+
+        this.slotSection.style.display = ''
+        if (this.slotNameLabel) {
+            this.slotNameLabel.textContent = slot.fieldData?.fileName ?? 'No field'
+        }
+        if (this.slotColormapSelect) {
+            this.slotColormapSelect.value = slot.slotParams.colormap
+        }
+        if (this.slotVelocitySelect) {
+            this.slotVelocitySelect.value = slot.slotParams.velocityScaling
+        }
+    }
+
+    private buildSlotSection() {
+        const { section, body } = this.createSection('Selected Field')
+        this.slotSection = section
+        section.style.display = 'none' // hidden until a slot is selected
+
+        // Field name label
+        this.slotNameLabel = document.createElement('div')
+        this.slotNameLabel.style.fontSize = '11px'
+        this.slotNameLabel.style.color = '#9fb7ff'
+        this.slotNameLabel.style.marginBottom = '8px'
+        this.slotNameLabel.style.overflow = 'hidden'
+        this.slotNameLabel.style.textOverflow = 'ellipsis'
+        this.slotNameLabel.style.whiteSpace = 'nowrap'
+        body.appendChild(this.slotNameLabel)
+
+        // Colormap dropdown
+        const cmRow = document.createElement('label')
+        cmRow.className = 'controls__row'
+        cmRow.style.gridTemplateColumns = '1fr 1fr'
+        const cmLabel = document.createElement('span')
+        cmLabel.textContent = 'Colormap'
+        this.slotColormapSelect = document.createElement('select')
+        this.slotColormapSelect.className = 'controls__select'
+        for (const cm of COLORMAPS) {
+            const opt = document.createElement('option')
+            opt.value = cm.name
+            opt.textContent = cm.label
+            this.slotColormapSelect.appendChild(opt)
+        }
+        this.slotColormapSelect.addEventListener('change', () => {
+            this.callbacks.onSlotColormapChange(this.slotColormapSelect!.value as ColormapName)
+        })
+        cmRow.appendChild(cmLabel)
+        cmRow.appendChild(this.slotColormapSelect)
+        body.appendChild(cmRow)
+
+        // Velocity scaling dropdown
+        const vsRow = document.createElement('label')
+        vsRow.className = 'controls__row'
+        vsRow.style.gridTemplateColumns = '1fr 1fr'
+        const vsLabel = document.createElement('span')
+        vsLabel.textContent = 'Vel. scaling'
+        this.slotVelocitySelect = document.createElement('select')
+        this.slotVelocitySelect.className = 'controls__select'
+        for (const mode of [
+            { value: 'raw', label: 'Raw' },
+            { value: 'log', label: 'Logarithmic' },
+            { value: 'normalized', label: 'Normalized' },
+        ]) {
+            const opt = document.createElement('option')
+            opt.value = mode.value
+            opt.textContent = mode.label
+            this.slotVelocitySelect.appendChild(opt)
+        }
+        this.slotVelocitySelect.addEventListener('change', () => {
+            this.callbacks.onSlotVelocityScalingChange(this.slotVelocitySelect!.value as VelocityScaling)
+        })
+        vsRow.appendChild(vsLabel)
+        vsRow.appendChild(this.slotVelocitySelect)
+        body.appendChild(vsRow)
+
+        // Remove field button
+        const removeBtn = document.createElement('button')
+        removeBtn.type = 'button'
+        removeBtn.className = 'controls__button'
+        removeBtn.textContent = 'Remove field'
+        removeBtn.addEventListener('click', () => this.callbacks.onSlotRemove())
+        body.appendChild(removeBtn)
+
+        this.container.appendChild(section)
     }
 
     private buildParticlesSection() {
@@ -160,57 +263,6 @@ export class ControlPanel {
     private buildColorSection() {
         const { section, body } = this.createSection('Color')
 
-        // Colormap dropdown
-        const cmRow = document.createElement('label')
-        cmRow.className = 'controls__row'
-        cmRow.style.gridTemplateColumns = '1fr 1fr'
-        const cmLabel = document.createElement('span')
-        cmLabel.textContent = 'Colormap'
-        const cmSelect = document.createElement('select')
-        cmSelect.className = 'controls__select'
-        for (const cm of COLORMAPS) {
-            const opt = document.createElement('option')
-            opt.value = cm.name
-            opt.textContent = cm.label
-            cmSelect.appendChild(opt)
-        }
-        cmSelect.value = this.params.colormap
-        cmSelect.addEventListener('change', () => {
-            this.params.colormap = cmSelect.value as ColormapName
-            this.callbacks.onColormapChange(this.params.colormap)
-        })
-        cmRow.appendChild(cmLabel)
-        cmRow.appendChild(cmSelect)
-        body.appendChild(cmRow)
-        this.selectHandles.set('colormap', cmSelect)
-
-        // Velocity scaling dropdown
-        const vsRow = document.createElement('label')
-        vsRow.className = 'controls__row'
-        vsRow.style.gridTemplateColumns = '1fr 1fr'
-        const vsLabel = document.createElement('span')
-        vsLabel.textContent = 'Vel. scaling'
-        const vsSelect = document.createElement('select')
-        vsSelect.className = 'controls__select'
-        for (const mode of [
-            { value: 'raw', label: 'Raw' },
-            { value: 'log', label: 'Logarithmic' },
-            { value: 'normalized', label: 'Normalized' },
-        ]) {
-            const opt = document.createElement('option')
-            opt.value = mode.value
-            opt.textContent = mode.label
-            vsSelect.appendChild(opt)
-        }
-        vsSelect.value = this.params.velocityScaling
-        vsSelect.addEventListener('change', () => {
-            this.params.velocityScaling = vsSelect.value as VelocityScaling
-        })
-        vsRow.appendChild(vsLabel)
-        vsRow.appendChild(vsSelect)
-        body.appendChild(vsRow)
-        this.selectHandles.set('velocityScaling', vsSelect)
-
         // Background color
         const bgRow = document.createElement('label')
         bgRow.className = 'controls__row'
@@ -252,15 +304,17 @@ export class ControlPanel {
         this.callbacks.onLifetimeChange()
         this.callbacks.onTrailToggle(this.params.trailsEnabled)
         this.callbacks.onTrailDecayChange(this.params.trailDecay)
-        this.callbacks.onColormapChange(this.params.colormap)
         this.callbacks.onBackgroundColorChange(this.params.backgroundColor)
         this.callbacks.onOpacityChange(this.params.opacity)
         this.callbacks.onBloomThresholdChange(this.params.bloomThreshold)
 
+        // Reset per-slot to defaults
+        this.callbacks.onSlotColormapChange(defaultSlotParams.colormap)
+        this.callbacks.onSlotVelocityScalingChange(defaultSlotParams.velocityScaling)
+
         // Sync sliders
         for (const [key, handle] of this.controlHandles.entries()) {
             if (key === 'particleCount') {
-                // Log-scale slider
                 const logMin = Math.log(100)
                 const logMax = Math.log(200000)
                 const t = (Math.log(this.params.particleCount) - logMin) / (logMax - logMin)
@@ -274,11 +328,12 @@ export class ControlPanel {
             }
         }
 
-        // Sync selects
-        const cmSelect = this.selectHandles.get('colormap')
-        if (cmSelect) cmSelect.value = this.params.colormap
-        const vsSelect = this.selectHandles.get('velocityScaling')
-        if (vsSelect) vsSelect.value = this.params.velocityScaling
+        if (this.slotColormapSelect) {
+            this.slotColormapSelect.value = defaultSlotParams.colormap
+        }
+        if (this.slotVelocitySelect) {
+            this.slotVelocitySelect.value = defaultSlotParams.velocityScaling
+        }
 
         if (this.trailToggle) {
             this.trailToggle.checked = this.params.trailsEnabled
