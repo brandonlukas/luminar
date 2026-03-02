@@ -43,7 +43,7 @@ export class ControlPanel {
     }
 
     private buildParticlesSection() {
-        const { header, body } = this.createSection('Particles')
+        const { section, body } = this.createSection('Particles')
 
         // Particle count (logarithmic)
         const logMin = Math.log(100)
@@ -133,12 +133,11 @@ export class ControlPanel {
             this.callbacks.onTrailDecayChange(v)
         }, 'trailDecay')
 
-        this.container.appendChild(header)
-        this.container.appendChild(body)
+        this.container.appendChild(section)
     }
 
     private buildBloomSection() {
-        const { header, body } = this.createSection('Bloom')
+        const { section, body } = this.createSection('Bloom')
 
         this.addSlider(body, 'Strength', 0.2, 2.5, 0.05, this.params.bloomStrength, (v) => {
             this.params.bloomStrength = v
@@ -155,12 +154,11 @@ export class ControlPanel {
             this.callbacks.onBloomThresholdChange(v)
         }, 'bloomThreshold')
 
-        this.container.appendChild(header)
-        this.container.appendChild(body)
+        this.container.appendChild(section)
     }
 
     private buildColorSection() {
-        const { header, body } = this.createSection('Color')
+        const { section, body } = this.createSection('Color')
 
         // Colormap dropdown
         const cmRow = document.createElement('label')
@@ -231,8 +229,7 @@ export class ControlPanel {
         bgRow.appendChild(bgInput)
         body.appendChild(bgRow)
 
-        this.container.appendChild(header)
-        this.container.appendChild(body)
+        this.container.appendChild(section)
     }
 
     private buildResetButton() {
@@ -316,7 +313,7 @@ export class ControlPanel {
         section.appendChild(header)
         section.appendChild(body)
 
-        return { section, header: section, body }
+        return { section, body }
     }
 
     private addSlider(
