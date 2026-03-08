@@ -1,8 +1,8 @@
 export type VectorSample = { x: number; y: number }
 export type VectorDatum = { x: number; y: number; dx: number; dy: number }
 export type SliderHandle = { input: HTMLInputElement; valueTag: HTMLSpanElement }
-export type ColormapName = 'viridis' | 'cividis' | 'inferno' | 'magma' | 'plasma' | 'coolwarm'
-export type VelocityScaling = 'raw' | 'log' | 'normalized'
+export type ColormapName = 'white' | 'viridis' | 'cividis' | 'inferno' | 'magma' | 'plasma' | 'coolwarm' | 'piyg'
+export type VelocityScaling = 'raw' | 'log' | 'normalized' | 'dot-product'
 
 /** Per-slot settings that differ between vector fields */
 export interface SlotParams {
@@ -51,4 +51,12 @@ export interface FieldBounds {
     maxY: number
     width: number
     height: number
+}
+
+/** Lightweight reference to another field for cross-field operations (e.g. dot product coloring) */
+export interface ReferenceFieldProvider {
+    data: VectorDatum[]
+    transform: FieldTransform
+    grid: Map<number, VectorDatum[]>
+    gridCellSize: number
 }

@@ -1,6 +1,6 @@
 import { FieldSlot } from './field-slot'
 import { defaultSlotParams, MAX_SLOTS } from '../lib/constants'
-import type { ParticleParams, SlotFieldData } from '../lib/types'
+import type { ParticleParams, SlotFieldData, ReferenceFieldProvider } from '../lib/types'
 
 export interface ViewportGridCallbacks {
     onSlotSelected: (slot: FieldSlot | null) => void
@@ -49,6 +49,7 @@ export class ViewportGrid {
         this.invalidateActiveCache()
         this.updateLayout()
         this.selectSlot(slot)
+        this.syncReferenceFields()
         this.emptyState.classList.add('empty-state--hidden')
 
         return idx
@@ -68,6 +69,7 @@ export class ViewportGrid {
             this.selectSlot(next)
         }
 
+        this.syncReferenceFields()
         this.updateLayout()
 
         if (this.cachedActiveSlots.length === 0) {
@@ -107,8 +109,33 @@ export class ViewportGrid {
             this.slots[b]!.container.dataset.slotIndex = String(b)
         }
         this.invalidateActiveCache()
+        this.syncReferenceFields()
         this.rebuildDOM()
         requestAnimationFrame(() => this.resizeAll())
+    }
+
+    // ── Cross-slot reference syncing ───────────────
+
+    private syncReferenceFields(): void {
+        const active = this.getActiveSlots()
+        if (active.length === 2) {
+            const [a, b] = active
+            a.setReferenceField(b.hasField() ? this.buildRefProvider(b) : null)
+            b.setReferenceField(a.hasField() ? this.buildRefProvider(a) : null)
+        } else {
+            for (const slot of active) {
+                slot.setReferenceField(null)
+            }
+        }
+    }
+
+    private buildRefProvider(slot: FieldSlot): ReferenceFieldProvider {
+        return {
+            data: slot.fieldData!.data,
+            transform: slot.fieldData!.transform,
+            grid: slot.particleSystem.getGrid(),
+            gridCellSize: slot.particleSystem.getGridCellSize(),
+        }
     }
 
     // ── Layout ────────────────────────────────────

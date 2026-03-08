@@ -93,7 +93,13 @@ const controlPanel = new ControlPanel(sidebar, params, {
         grid.getSelectedSlot()?.setColormap(name)
     },
     onSlotVelocityScalingChange: (scaling) => {
-        grid.getSelectedSlot()?.setVelocityScaling(scaling)
+        const slot = grid.getSelectedSlot()
+        if (!slot) return
+        slot.setVelocityScaling(scaling)
+        if (scaling === 'dot-product') {
+            slot.setColormap('coolwarm')
+            controlPanel.updateSlotSection(slot)
+        }
     },
     onSlotRemove: () => {
         const slot = grid.getSelectedSlot()

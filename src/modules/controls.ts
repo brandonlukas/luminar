@@ -122,6 +122,7 @@ export class ControlPanel {
             { value: 'raw', label: 'Raw' },
             { value: 'log', label: 'Logarithmic' },
             { value: 'normalized', label: 'Normalized' },
+            { value: 'dot-product', label: 'Dot Product' },
         ]) {
             const opt = document.createElement('option')
             opt.value = mode.value

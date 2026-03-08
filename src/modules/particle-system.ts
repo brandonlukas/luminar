@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Sphere, Vector3 } from 'three'
-import type { VectorSample, VectorDatum, ParticleParams, SlotParams, FieldTransform, FieldBounds } from '../lib/types'
+import type { VectorSample, VectorDatum, ParticleParams, SlotParams, FieldTransform, FieldBounds, ReferenceFieldProvider } from '../lib/types'
 import { WORLD_EXTENT, FLOW_SCALE, SPEED_TO_GLOW, JITTER } from '../lib/constants'
 
 export class ParticleSystem {
@@ -21,6 +21,9 @@ export class ParticleSystem {
     public geometry: BufferGeometry
     private params: ParticleParams
     slotParams: SlotParams
+
+    // Reference field for cross-field operations (dot product coloring)
+    private referenceField: ReferenceFieldProvider | null = null
 
     // Velocity range for colormap mapping
     velocityMin = 0
@@ -57,6 +60,13 @@ export class ParticleSystem {
         this.computeVelocityRange()
     }
 
+    setReferenceField(ref: ReferenceFieldProvider | null): void {
+        this.referenceField = ref
+    }
+
+    getGrid(): Map<number, VectorDatum[]> { return this.grid }
+    getGridCellSize(): number { return this.gridCellSize }
+
     update(dt: number, lut: Float32Array) {
         const speedMultiplier = FLOW_SCALE * this.params.speed * dt
         const jitterRange = JITTER * dt
@@ -64,6 +74,11 @@ export class ParticleSystem {
         // Pre-compute threshold for field lookups (invariant within a frame)
         const thresholdSq = hasField
             ? Math.pow(this.params.fieldValidDistance / this.fieldTransform.scale, 2)
+            : 0
+
+        const useDotProduct = this.slotParams.velocityScaling === 'dot-product' && this.referenceField !== null
+        const refThresholdSq = useDotProduct
+            ? Math.pow(this.params.fieldValidDistance / this.referenceField!.transform.scale, 2)
             : 0
 
         for (let i = 0; i < this.params.particleCount; i += 1) {
@@ -80,8 +95,16 @@ export class ParticleSystem {
             x += v.x * speedMultiplier + this.randomRange(-jitterRange, jitterRange)
             y += v.y * speedMultiplier + this.randomRange(-jitterRange, jitterRange)
 
-            const speed = Math.sqrt(v.x * v.x + v.y * v.y)
-            this.applyColor(i3, speed, lut)
+            if (useDotProduct) {
+                const t = this.computeDotProductT(x, y, thresholdSq, refThresholdSq)
+                const idx = Math.floor(t * 255) * 3
+                this.colors[i3] = lut[idx]
+                this.colors[i3 + 1] = lut[idx + 1]
+                this.colors[i3 + 2] = lut[idx + 2]
+            } else {
+                const speed = Math.sqrt(v.x * v.x + v.y * v.y)
+                this.applyColor(i3, speed, lut)
+            }
 
             this.lifetimes[i] -= dt
 
@@ -266,6 +289,64 @@ export class ParticleSystem {
         for (let dx = -1; dx <= 1; dx += 1) {
             for (let dy = -1; dy <= 1; dy += 1) {
                 const cell = this.grid.get(this.getGridKey(cellX + dx, cellY + dy))
+                if (!cell) continue
+
+                for (const d of cell) {
+                    const diffX = d.x - dataX
+                    const diffY = d.y - dataY
+                    const distSq = diffX * diffX + diffY * diffY
+                    if (distSq < bestDistSq) {
+                        bestDistSq = distSq
+                        nearest = d
+                    }
+                }
+            }
+        }
+
+        return bestDistSq <= thresholdSq ? nearest : null
+    }
+
+    private computeDotProductT(worldX: number, worldY: number, ownThresholdSq: number, refThresholdSq: number): number {
+        const ref = this.referenceField!
+
+        // Look up own field vector at this position
+        const ownDataX = this.worldToDataX(worldX)
+        const ownDataY = this.worldToDataY(worldY)
+        const ownDatum = ParticleSystem.findNearestInGrid(ownDataX, ownDataY, ownThresholdSq, this.grid, this.gridCellSize)
+        if (!ownDatum) return 0.5 // neutral if no own data
+
+        // Look up reference field vector at this position
+        const refDataX = (worldX - ref.transform.offsetX) / ref.transform.scale
+        const refDataY = (worldY - ref.transform.offsetY) / ref.transform.scale
+        const refDatum = ParticleSystem.findNearestInGrid(refDataX, refDataY, refThresholdSq, ref.grid, ref.gridCellSize)
+        if (!refDatum) return 0.5 // neutral if no reference data
+
+        // Cosine similarity
+        const dot = ownDatum.dx * refDatum.dx + ownDatum.dy * refDatum.dy
+        const magOwn = Math.sqrt(ownDatum.dx * ownDatum.dx + ownDatum.dy * ownDatum.dy)
+        const magRef = Math.sqrt(refDatum.dx * refDatum.dx + refDatum.dy * refDatum.dy)
+
+        if (magOwn === 0 || magRef === 0) return 0.5
+
+        const cosine = dot / (magOwn * magRef)
+        // Map [-1, 1] → [0, 1]
+        return Math.max(0, Math.min(1, (cosine + 1) / 2))
+    }
+
+    private static findNearestInGrid(
+        dataX: number, dataY: number, thresholdSq: number,
+        grid: Map<number, VectorDatum[]>, gridCellSize: number,
+    ): VectorDatum | null {
+        let nearest: VectorDatum | null = null
+        let bestDistSq = Number.MAX_VALUE
+
+        const cellX = Math.floor(dataX / gridCellSize)
+        const cellY = Math.floor(dataY / gridCellSize)
+
+        for (let dx = -1; dx <= 1; dx += 1) {
+            for (let dy = -1; dy <= 1; dy += 1) {
+                const key = ((cellX + dx) * ParticleSystem.GRID_PRIME) ^ (cellY + dy)
+                const cell = grid.get(key)
                 if (!cell) continue
 
                 for (const d of cell) {

@@ -16,7 +16,7 @@ import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass
 import { ParticleSystem } from './particle-system'
 import { getColormapLut } from '../lib/colormaps'
 import { VIEW_SIZE } from '../lib/constants'
-import type { ParticleParams, SlotParams, SlotFieldData, ColormapName, VelocityScaling } from '../lib/types'
+import type { ParticleParams, SlotParams, SlotFieldData, ColormapName, VelocityScaling, ReferenceFieldProvider } from '../lib/types'
 
 export class FieldSlot {
     index: number
@@ -138,6 +138,10 @@ export class FieldSlot {
 
     setVelocityScaling(scaling: VelocityScaling): void {
         this.slotParams.velocityScaling = scaling
+    }
+
+    setReferenceField(ref: ReferenceFieldProvider | null): void {
+        this.particleSystem.setReferenceField(ref)
     }
 
     // ── Global settings propagation ───────────────

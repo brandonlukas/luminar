@@ -153,13 +153,37 @@ const coolwarmStops: ColorStop[] = [
     [0.706, 0.016, 0.150],
 ]
 
+const piygStops: ColorStop[] = [
+    [0.557, 0.004, 0.322],
+    [0.678, 0.106, 0.408],
+    [0.773, 0.235, 0.490],
+    [0.839, 0.376, 0.573],
+    [0.886, 0.514, 0.659],
+    [0.925, 0.643, 0.741],
+    [0.953, 0.761, 0.820],
+    [0.969, 0.878, 0.898],
+    [0.969, 0.961, 0.949],
+    [0.902, 0.961, 0.847],
+    [0.788, 0.925, 0.714],
+    [0.651, 0.871, 0.588],
+    [0.506, 0.804, 0.467],
+    [0.369, 0.714, 0.365],
+    [0.247, 0.604, 0.271],
+    [0.153, 0.471, 0.216],
+    [0.102, 0.380, 0.157],
+]
+
+const whiteLut = new Float32Array(256 * 3).fill(1.0)
+
 export const COLORMAPS: ColormapDef[] = [
+    { name: 'white', label: 'White', lut: whiteLut },
     { name: 'viridis', label: 'Viridis', lut: buildLut(viridisStops) },
     { name: 'cividis', label: 'Cividis', lut: buildLut(cividisStops) },
     { name: 'inferno', label: 'Inferno', lut: buildLut(infernoStops) },
     { name: 'magma', label: 'Magma', lut: buildLut(magmaStops) },
     { name: 'plasma', label: 'Plasma', lut: buildLut(plasmaStops) },
     { name: 'coolwarm', label: 'Coolwarm', lut: buildLut(coolwarmStops) },
+    { name: 'piyg', label: 'PiYG', lut: buildLut(piygStops) },
 ]
 
 export function getColormapLut(name: ColormapName): Float32Array {
