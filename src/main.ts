@@ -151,10 +151,6 @@ animate(0)
 // ──────────────────────────────────────────────────
 
 async function loadCsvFile(file: File) {
-    if (grid.isFull()) {
-        statusField.textContent = `All ${MAX_SLOTS} slots full`
-        return
-    }
     try {
         const text = await file.text()
         const rows = parseCsv(text)
@@ -163,10 +159,19 @@ async function loadCsvFile(file: File) {
             return
         }
         const { transform, bounds } = computeFieldTransform(rows)
-        const label = `${file.name} \u00B7 ${rows.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`
+        const fieldData = { fileName: file.name, label: `${file.name} \u00B7 ${rows.length} vectors (${bounds.width.toFixed(1)}\u00D7${bounds.height.toFixed(1)})`, data: rows, transform, bounds }
 
-        grid.addField({ fileName: file.name, label, data: rows, transform, bounds })
-        statusField.textContent = label
+        if (grid.isFull()) {
+            const selected = grid.getSelectedSlot()
+            if (selected) {
+                grid.replaceField(selected.index, fieldData)
+                statusField.textContent = fieldData.label
+                return
+            }
+        }
+
+        grid.addField(fieldData)
+        statusField.textContent = fieldData.label
     } catch (error) {
         console.error('Failed to load CSV', error)
         statusField.textContent = 'CSV load error'
@@ -207,9 +212,9 @@ function setupDragAndDrop() {
         dragCounter = 0
         dropOverlay.style.display = 'none'
         const dt = e.dataTransfer
-        if (dt && dt.files) {
+        if (dt && dt.files && dt.files.length > 0) {
             const available = MAX_SLOTS - grid.getActiveCount()
-            const count = Math.min(dt.files.length, available)
+            const count = Math.max(1, Math.min(dt.files.length, available))
             for (let i = 0; i < count; i++) {
                 loadCsvFile(dt.files[i])
             }

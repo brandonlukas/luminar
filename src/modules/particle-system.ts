@@ -321,16 +321,11 @@ export class ParticleSystem {
         const refDatum = ParticleSystem.findNearestInGrid(refDataX, refDataY, refThresholdSq, ref.grid, ref.gridCellSize)
         if (!refDatum) return 0.5 // neutral if no reference data
 
-        // Cosine similarity
+        // Raw dot product clamped to [-1, 1] so near-zero fields stay neutral
         const dot = ownDatum.dx * refDatum.dx + ownDatum.dy * refDatum.dy
-        const magOwn = Math.sqrt(ownDatum.dx * ownDatum.dx + ownDatum.dy * ownDatum.dy)
-        const magRef = Math.sqrt(refDatum.dx * refDatum.dx + refDatum.dy * refDatum.dy)
-
-        if (magOwn === 0 || magRef === 0) return 0.5
-
-        const cosine = dot / (magOwn * magRef)
+        const clamped = Math.max(-1, Math.min(1, dot))
         // Map [-1, 1] → [0, 1]
-        return Math.max(0, Math.min(1, (cosine + 1) / 2))
+        return (clamped + 1) / 2
     }
 
     private static findNearestInGrid(

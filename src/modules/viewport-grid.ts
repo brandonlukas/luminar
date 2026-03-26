@@ -55,6 +55,14 @@ export class ViewportGrid {
         return idx
     }
 
+    replaceField(index: number, fieldData: SlotFieldData): void {
+        const slot = this.slots[index]
+        if (!slot) return
+        slot.loadField(fieldData)
+        this.syncReferenceFields()
+        requestAnimationFrame(() => this.resizeAll())
+    }
+
     removeSlot(index: number): void {
         const slot = this.slots[index]
         if (!slot) return
@@ -202,6 +210,8 @@ export class ViewportGrid {
     }
 
     resizeAll(): void {
+        this.gridContainer.style.aspectRatio =
+            this.globalParams.aspectRatio === '4:3' ? '4/3' : '16/9'
         for (const slot of this.getActiveSlots()) {
             slot.resize()
         }
